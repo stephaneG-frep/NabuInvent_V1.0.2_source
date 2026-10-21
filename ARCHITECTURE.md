@@ -96,7 +96,7 @@ texte seul si le modèle ne renvoie pas de JSON valide.
 
 ## Tests
 
-30 tests unitaires :
+34 tests unitaires :
 
 - `test/core_test.dart` — moteur local (invention, plan, évaluation, étincelle,
   journal), parsing des réponses cloud (JSON valide + repli texte seul),
@@ -116,6 +116,7 @@ flutter test      # « All tests passed! »
 
 ## Construction
 
-Version gérée dans `pubspec.yaml` (`1.0.2+3`). APK universel + APK par ABI
-(arm64, arm32, x86_64). Signés debug pour installation manuelle.
+Version gérée dans `pubspec.yaml` (`1.0.3+4`). APK universel + APK par ABI
+(arm64, arm32, x86_64). Signés avec la clé release (`android/key.properties`,
+voir README) ; R8 est désactivé (`shared_preferences_android` passe par JNI).
 Identifiant d'application : `com.nabu.invent`.

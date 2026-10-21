@@ -2,7 +2,7 @@ name: nabuinvent
 description: "NabuInvent AI — l'agent IA inventeur, bricoleur et créatif."
 publish_to: 'none'
 
-version: 1.0.2+3
+version: 1.0.3+4
 
 environment:
   sdk: ^3.12.2

@@ -1,7 +1,18 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Clé de signature release : android/key.properties (ignoré par git) pointe
+// vers le keystore, conservé hors du projet. Sans ce fichier, la release
+// échoue au lieu d'être signée avec une clé debug, propre à chaque machine,
+// qui empêcherait ensuite toute mise à jour sans désinstaller l'application.
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
 }
 
 android {
@@ -25,11 +36,24 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (keystoreProperties.isNotEmpty()) {
+            create("release") {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
+                ?: throw GradleException(
+                    "android/key.properties introuvable : impossible de signer la release. " +
+                        "Voir README, section « Signature »."
+                )
             // R8 supprime le code Kotlin que shared_preferences_android (>= 2.5)
             // appelle depuis Dart via JNI : NoSuchMethodError / ClassNotFoundException
             // en release, et plus aucun réglage ne s'enregistre. On désactive

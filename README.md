@@ -13,18 +13,14 @@ Perplexity, Claude, Gemini…) pour obtenir des réponses générées par un gra
 
 ## Installation
 
-Téléchargez l'un des APK de la version 1.0.0 (voir le dossier de livraison) :
+Installez l'APK de la dernière version (voir le dossier de livraison).
+Activez « installer des applications inconnues » si nécessaire.
 
-| Fichier | Description |
-|---|---|
-| `NabuInvent_V1.0.0_Android_universel.apk` | APK universel, compatible avec tous les appareils |
-| `NabuInvent_V1.0.0_Android_arm64.apk` | Optimisé pour les appareils récents (ARMV8) |
-| `NabuInvent_V1.0.0_Android_arm32.apk` | Optimisé pour les appareils plus anciens (ARMV7) |
-
-Activez « installer des applications inconnues » si nécessaire, puis installez l'APK.
-
-> ⚠️ Ces APK sont signés avec une clé de **debug** : c'est suffisant pour une
-> installation manuelle, mais pas pour une publication sur le Play Store.
+> ⚠️ À partir de la **1.0.3**, les APK sont signés avec la clé release de
+> NabuInvent. Une version antérieure (signée debug) doit être **désinstallée**
+> avant d'installer la 1.0.3 : exportez d'abord vos données (Réglages →
+> Exporter), puis réimportez-les. Les mises à jour suivantes s'installent
+> par-dessus, sans perte.
 
 ## Démarrage rapide
 
@@ -61,13 +57,32 @@ export PATH="$PATH:/opt/flutter/bin"   # selon votre installation
 cd nabuinvent
 flutter pub get
 flutter analyze        # doit afficher « No issues found! »
-flutter test           # les 30 tests unitaires doivent passer
+flutter test           # les 34 tests unitaires doivent passer
 flutter build apk --release
 flutter build apk --release --split-per-abi
 ```
 
 Les APK sont produits dans `build/app/outputs/flutter-apk/`.
-La version est gérée dans `pubspec.yaml` (`1.0.2+3`).
+La version est gérée dans `pubspec.yaml` (`1.0.3+4`) : augmentez le numéro
+après le `+` à chaque livraison.
+
+### Signature
+
+La release est signée par la clé décrite dans `android/key.properties`
+(ignoré par git) :
+
+```properties
+storePassword=…
+keyPassword=…
+keyAlias=nabuinvent
+storeFile=/chemin/absolu/vers/nabuinvent-release.jks
+```
+
+Sans ce fichier, `flutter build apk --release` échoue volontairement :
+signer avec une clé debug rendrait les mises à jour impossibles sans
+désinstallation. **Le keystore et son mot de passe doivent être sauvegardés
+hors de la machine** : s'ils sont perdus, plus aucune mise à jour de
+l'application installée n'est possible.
 
 ## Documentation
 

@@ -74,7 +74,7 @@
 
 ## Tests & qualité
 
-- 30 tests unitaires couvrant le moteur local (invention, plan, évaluation,
+- 34 tests unitaires couvrant le moteur local (invention, plan, évaluation,
   étincelle, journal, détection d'intention), le parsing des réponses cloud,
   l'application des réponses aux projets et la persistance sur disque.
 - Analyse statique Flutter : **zéro problème**.
