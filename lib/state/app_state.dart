@@ -11,6 +11,7 @@ import '../ai/openai_provider.dart';
 import '../models/app_data.dart';
 import '../models/backlog_idea.dart';
 import '../models/chat_turn.dart';
+import '../models/concept.dart';
 import '../models/invention_project.dart';
 import '../models/journal_entry.dart';
 import '../models/spark.dart';
@@ -147,25 +148,73 @@ class AppState extends ChangeNotifier {
     return response;
   }
 
+  int _pendingAi = 0;
+
+  /// Une demande à l'IA est en cours (quel que soit l'écran qui l'a lancée).
+  bool get aiThinking => _pendingAi > 0;
+
   Future<NabuAiResponse> askAi(String userText, {String? activeProjectId}) async {
     final history = _historyForAi();
     final ctxProject = data.projectById(activeProjectId);
 
     // Le message de l'utilisateur s'affiche tout de suite, sans attendre l'IA.
     _appendTurn(userText, activeProjectId: activeProjectId);
+    _pendingAi++;
     notifyListeners();
 
-    final response = await AiService(provider: provider).ask(
-      userText: userText,
-      history: history,
-      projectContext:
-          ctxProject == null ? null : jsonEncode(ctxProject.toJson()),
-    );
+    final NabuAiResponse response;
+    try {
+      response = await AiService(provider: provider).ask(
+        userText: userText,
+        history: history,
+        projectContext:
+            ctxProject == null ? null : jsonEncode(ctxProject.toJson()),
+      );
+    } finally {
+      _pendingAi--;
+    }
 
     _applyResponse(response, userText: userText, activeProjectId: activeProjectId);
     await _persist();
     notifyListeners();
     return response;
+  }
+
+  /// Fournisseur capable d'analyser une photo, ou null (mode local, cloud non
+  /// configuré) : la fonction est alors indiquée comme indisponible.
+  VisionProvider? get vision {
+    final p = provider;
+    return settings.useCloud && p.isConfigured && p is VisionProvider
+        ? p as VisionProvider
+        : null;
+  }
+
+  /// Le fournisseur actuel a-t-il déjà reçu l'accord pour les photos ?
+  bool get photoConsentGiven =>
+      settings.photoConsentUrl.isNotEmpty &&
+      settings.photoConsentUrl == settings.aiBaseUrl.trim();
+
+  Future<void> rememberPhotoConsent() =>
+      updateSettings(settings.copyWith(photoConsentUrl: settings.aiBaseUrl.trim()));
+
+  /// Transforme un concept choisi en projet (sans appel à l'IA) et renvoie
+  /// l'id du projet créé.
+  String adoptConcept(InventionConcept concept) {
+    final project = concept.toProject();
+    data = data.copyWith(
+      projects: [...data.projects, project],
+      journal: [
+        ...data.journal,
+        JournalEntry(
+          id: _uuid.v4(),
+          text: 'Concept choisi : ${concept.name}.',
+          projectId: project.id,
+        ),
+      ],
+    );
+    _persist();
+    notifyListeners();
+    return project.id;
   }
 
   /// Les 10 derniers tours utiles : les échanges en erreur (et la question qui
@@ -179,9 +228,24 @@ class AppState extends ChangeNotifier {
       if (t.isUser && i + 1 < chats.length && _isFailedTurn(chats[i + 1])) {
         continue;
       }
-      turns.add(AiTurn(t.role, t.content));
+      turns.add(AiTurn(t.role, t.isUser ? t.content : _assistantContextText(t)));
     }
     return turns.length > 10 ? turns.sublist(turns.length - 10) : turns;
+  }
+
+  /// Texte d'un tour assistant renvoyé au modèle : le message, plus la liste
+  /// numérotée des concepts proposés, pour que « le deuxième me plaît » ou
+  /// « le héron minimaliste » puissent être compris.
+  String _assistantContextText(ChatTurn t) {
+    final concepts = conceptsFromJson(t.payload?['concepts']);
+    if (concepts.isEmpty) return t.content;
+    final b = StringBuffer(t.content)..writeln()..writeln('Concepts proposés :');
+    for (var i = 0; i < concepts.length; i++) {
+      final c = concepts[i];
+      b.writeln('${i + 1}. ${c.subject.isEmpty ? '' : '[${c.subject}] '}${c.name}'
+          '${c.style.isEmpty ? '' : ' — ${c.style}'} : ${c.description}');
+    }
+    return b.toString().trimRight();
   }
 
   bool _isFailedTurn(ChatTurn t) => !t.isUser && t.payload?['success'] == false;

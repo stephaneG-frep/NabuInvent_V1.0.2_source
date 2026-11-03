@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import '../models/material_analysis.dart';
 import 'ai_response.dart';
 
 abstract class AiProvider {
@@ -12,6 +16,29 @@ abstract class AiProvider {
     List<AiTurn> history = const [],
     String? projectContext,
   });
+}
+
+/// Fournisseur capable d'analyser une image (modèle multimodal). Le moteur
+/// local ne l'implémente pas : l'analyse de photo n'est jamais simulée.
+abstract class VisionProvider {
+  Future<MaterialAnalysis> analyzeMaterials({
+    required Uint8List imageBytes,
+    required String mimeType,
+    String note = '',
+  });
+}
+
+/// Message d'erreur lisible pour une erreur d'appel à un fournisseur IA.
+String friendlyAiError(Object e) {
+  final text = e.toString();
+  if (e is TimeoutException) {
+    return 'Le fournisseur n\'a pas répondu à temps. Vérifie ta connexion et réessaie.';
+  }
+  if (RegExp(r'SocketException|Failed host lookup|Connection (refused|reset)|Network is unreachable')
+      .hasMatch(text)) {
+    return 'Pas de connexion Internet : cette fonction a besoin du réseau.';
+  }
+  return text.replaceFirst('Exception: ', '');
 }
 
 class AiService {

@@ -14,6 +14,7 @@ class AppSettings {
   static const String kLastSparkDate = 'last_spark_date';
   static const String kSparkCount = 'spark_count_today';
   static const String kTechnicalMode = 'technical_mode';
+  static const String kPhotoConsentUrl = 'photo_consent_url';
 
   final String aiProvider;
   final String aiBaseUrl;
@@ -29,6 +30,10 @@ class AppSettings {
   /// Affiche le JSON d'origine des réponses IA (secrets masqués).
   final bool technicalMode;
 
+  /// URL du fournisseur auquel l'utilisateur a accepté d'envoyer ses photos
+  /// sans redemander. Vide = demander à chaque fois.
+  final String photoConsentUrl;
+
   const AppSettings({
     this.aiProvider = 'local',
     this.aiBaseUrl = 'https://api.openai.com/v1',
@@ -41,6 +46,7 @@ class AppSettings {
     this.lastSparkDate = '',
     this.sparkCountToday = 0,
     this.technicalMode = false,
+    this.photoConsentUrl = '',
   });
 
   bool get useCloud => aiProvider == 'openai';
@@ -60,6 +66,7 @@ class AppSettings {
     String? lastSparkDate,
     int? sparkCountToday,
     bool? technicalMode,
+    String? photoConsentUrl,
   }) =>
       AppSettings(
         aiProvider: aiProvider ?? this.aiProvider,
@@ -73,6 +80,7 @@ class AppSettings {
         lastSparkDate: lastSparkDate ?? this.lastSparkDate,
         sparkCountToday: sparkCountToday ?? this.sparkCountToday,
         technicalMode: technicalMode ?? this.technicalMode,
+        photoConsentUrl: photoConsentUrl ?? this.photoConsentUrl,
       );
 }
 
@@ -119,6 +127,7 @@ class SettingsService {
       lastSparkDate: prefs.getString(AppSettings.kLastSparkDate) ?? '',
       sparkCountToday: prefs.getInt(AppSettings.kSparkCount) ?? 0,
       technicalMode: prefs.getBool(AppSettings.kTechnicalMode) ?? false,
+      photoConsentUrl: prefs.getString(AppSettings.kPhotoConsentUrl) ?? '',
     );
   }
 
@@ -146,6 +155,7 @@ class SettingsService {
     await prefs.setString(AppSettings.kLastSparkDate, settings.lastSparkDate);
     await prefs.setInt(AppSettings.kSparkCount, settings.sparkCountToday);
     await prefs.setBool(AppSettings.kTechnicalMode, settings.technicalMode);
+    await prefs.setString(AppSettings.kPhotoConsentUrl, settings.photoConsentUrl);
   }
 
   ThemeMode _themeFromName(String? name) {

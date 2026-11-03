@@ -53,7 +53,9 @@ class OfflineAtelier {
   static ConceptRequest parse(String original, String text) {
     final resource = _resourceStart.firstMatch(text);
     if (resource != null && _askIdea.hasMatch(text) && !_makeVerb.hasMatch(text.substring(0, resource.start))) {
-      final list = _slice(original, text, resource.start + 6, resource.end);
+      final group = resource.group(1)!;
+      final s = resource.start + resource.group(0)!.indexOf(group);
+      final list = _slice(original, text, s, s + group.length);
       return ConceptRequest(materials: _splitList(list), resourceMode: true);
     }
 
@@ -94,8 +96,10 @@ class OfflineAtelier {
   static List<String> _splitList(String s) => s
       .split(RegExp(r',|\s+et\s+|\s+ainsi que\s+', caseSensitive: false))
       .map((e) => e
+          .trim()
           .replaceFirst(RegExp('^$_articles', caseSensitive: false), '')
           .replaceAll(RegExp(r'\s+'), ' ')
+          .replaceAll(RegExp(r'[.!?;:]+$'), '')
           .trim())
       .where((e) => e.isNotEmpty)
       .toList();

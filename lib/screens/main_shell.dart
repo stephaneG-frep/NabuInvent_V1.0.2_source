@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/tab_bus.dart';
+import 'atelier_screen.dart';
 import 'home_screen.dart';
 import 'projects_screen.dart';
 import 'settings_screen.dart';
-import 'sparks_screen.dart';
 import 'studio_screen.dart';
 
 class MainShell extends StatelessWidget {
@@ -15,7 +15,7 @@ class MainShell extends StatelessWidget {
     HomeScreen(),
     ProjectsScreen(),
     StudioScreen(),
-    SparksScreen(),
+    AtelierScreen(),
     SettingsScreen(),
   ];
 
@@ -49,9 +49,9 @@ class MainShell extends StatelessWidget {
             label: 'Studio',
           ),
           NavigationDestination(
-            icon: Icon(Icons.auto_awesome_outlined),
-            selectedIcon: Icon(Icons.auto_awesome),
-            label: 'Étincelles',
+            icon: Icon(Icons.handyman_outlined),
+            selectedIcon: Icon(Icons.handyman),
+            label: 'Atelier',
           ),
           NavigationDestination(
             icon: Icon(Icons.tune),

@@ -8,10 +8,12 @@ import '../ai/ai_response.dart';
 import '../ai/display_reply.dart';
 import '../ai/redact.dart';
 import '../models/chat_turn.dart';
+import '../models/concept.dart';
 import '../models/invention_project.dart';
 import '../models/spark.dart';
 import '../state/app_state.dart';
 import '../widgets/common.dart';
+import '../widgets/concept_cards.dart';
 import '../widgets/invention_sections.dart';
 import '../widgets/message_cards.dart';
 import '../widgets/rich_message.dart';
@@ -125,7 +127,8 @@ class _StudioScreenState extends State<StudioScreen> {
     final app = context.watch<AppState>();
     final chats = app.data.chats;
     final active = app.data.projectById(_activeProjectId);
-    final itemCount = chats.length + (_sending ? 1 : 0);
+    final thinking = _sending || app.aiThinking;
+    final itemCount = chats.length + (thinking ? 1 : 0);
     _autoScroll(itemCount, MediaQuery.viewInsetsOf(context).bottom);
 
     return Scaffold(
@@ -141,7 +144,7 @@ class _StudioScreenState extends State<StudioScreen> {
       body: Column(
         children: [
           Expanded(
-            child: chats.isEmpty && !_sending
+            child: chats.isEmpty && !thinking
                 ? _WelcomePanel(onPrompt: _send)
                 : Stack(
                     children: [
@@ -153,7 +156,7 @@ class _StudioScreenState extends State<StudioScreen> {
                         padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
                         itemCount: itemCount,
                         itemBuilder: (context, i) {
-                          if (_sending && i == chats.length) {
+                          if (thinking && i == chats.length) {
                             return const _TypingBubble();
                           }
                           final turn = chats[i];
@@ -172,6 +175,7 @@ class _StudioScreenState extends State<StudioScreen> {
                                 _createFromEvaluation(evalMap),
                             onSetActive: (id) =>
                                 setState(() => _activeProjectId = id),
+                            onChooseConcept: _chooseConcept,
                           );
                         },
                       ),
@@ -232,6 +236,26 @@ class _StudioScreenState extends State<StudioScreen> {
           style: TextStyle(
               color: color, fontSize: 11, fontWeight: FontWeight.w600)),
     );
+  }
+
+  /// Concept choisi dans une galerie. En mode cloud, le modèle développe le
+  /// concept en fiche complète ; en local, le projet est créé directement à
+  /// partir des données du concept.
+  void _chooseConcept(InventionConcept concept) {
+    final app = context.read<AppState>();
+    if (app.settings.useCloud && app.provider.isConfigured) {
+      setState(() => _activeProjectId = null);
+      _send('Je choisis le concept « ${concept.name} »'
+          '${concept.subject.isEmpty ? '' : ' (${concept.subject})'}. '
+          'Développe-le en fiche projet complète.');
+      return;
+    }
+    final id = app.adoptConcept(concept);
+    setState(() => _activeProjectId = id);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Projet « ${concept.name} » créé. Demande « élabore le plan » pour la suite.'),
+      action: SnackBarAction(label: 'Voir', onPressed: () => _openProject(context, id)),
+    ));
   }
 
   void _openProject(BuildContext context, String id) {
@@ -302,6 +326,7 @@ class _MessageBubble extends StatelessWidget {
   final void Function(SparkContent spark) onSaveSpark;
   final void Function(Map<String, dynamic> evalMap) onCreateFromEvaluation;
   final void Function(String id) onSetActive;
+  final void Function(InventionConcept concept) onChooseConcept;
 
   const _MessageBubble({
     required this.turn,
@@ -314,6 +339,7 @@ class _MessageBubble extends StatelessWidget {
     required this.onSaveSpark,
     required this.onCreateFromEvaluation,
     required this.onSetActive,
+    required this.onChooseConcept,
   });
 
   @override
@@ -473,6 +499,16 @@ class _MessageBubble extends StatelessWidget {
         spark: spark,
         onInvent: () => onInventSpark(spark),
         onSave: alreadySaved ? null : () => onSaveSpark(spark),
+      ));
+    }
+
+    if (reply.concepts.isNotEmpty) {
+      final projects = context.read<AppState>().data.projects;
+      widgets.add(ConceptGalleryCard(
+        concepts: reply.concepts,
+        resources: reply.resources,
+        onChoose: onChooseConcept,
+        isChosen: (c) => projects.any((p) => p.title == c.name),
       ));
     }
 
