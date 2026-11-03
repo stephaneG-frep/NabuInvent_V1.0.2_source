@@ -246,6 +246,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 18),
+          const SectionHeader('Avancé'),
+          const SizedBox(height: 8),
+          Card(
+            child: SwitchListTile(
+              secondary: const Icon(Icons.data_object),
+              title: const Text('Mode technique'),
+              subtitle: const Text(
+                  'Affiche le JSON d\'origine sous les réponses IA (clés masquées).'),
+              value: app.settings.technicalMode,
+              onChanged: (v) =>
+                  app.updateSettings(app.settings.copyWith(technicalMode: v)),
+            ),
+          ),
+          const SizedBox(height: 18),
           const SectionHeader('Aide'),
           const SizedBox(height: 8),
           Card(

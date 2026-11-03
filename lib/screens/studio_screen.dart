@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../ai/ai_response.dart';
+import '../ai/display_reply.dart';
+import '../ai/redact.dart';
 import '../models/chat_turn.dart';
-import '../models/idea_evaluation.dart';
 import '../models/invention_project.dart';
 import '../models/spark.dart';
 import '../state/app_state.dart';
 import '../widgets/common.dart';
+import '../widgets/invention_sections.dart';
 import '../widgets/message_cards.dart';
+import '../widgets/rich_message.dart';
 import 'project_detail_screen.dart';
 
 const _uuid = Uuid();
@@ -29,43 +33,91 @@ class _StudioScreenState extends State<StudioScreen> {
   String? _activeProjectId;
   bool _sending = false;
 
+  /// L'utilisateur est-il en bas de la conversation ? Seul cas où l'arrivée
+  /// d'un message fait défiler automatiquement : on ne ramène jamais en bas
+  /// quelqu'un qui relit un ancien message.
+  bool _atBottom = true;
+
+  /// Un message vient d'être envoyé par l'utilisateur : on le montre.
+  bool _followNext = false;
+  int _lastItemCount = 0;
+  double _lastKeyboardInset = 0;
+
+  /// Distance au bas sous laquelle on considère l'utilisateur « en bas ».
+  static const _bottomTolerance = 80.0;
+
   @override
   void initState() {
     super.initState();
     _activeProjectId = widget.seedProjectId;
+    _scroll.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _input.dispose();
+    _scroll.removeListener(_onScroll);
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    final atBottom = _isNearBottom();
+    if (atBottom != _atBottom) setState(() => _atBottom = atBottom);
+  }
+
+  bool _isNearBottom() {
+    if (!_scroll.hasClients) return true;
+    final p = _scroll.position;
+    return p.pixels >= p.maxScrollExtent - _bottomTolerance;
   }
 
   Future<void> _send(String raw) async {
     final text = raw.trim();
     if (text.isEmpty || _sending) return;
+    _followNext = true;
     setState(() => _sending = true);
     _input.clear();
-    _scrollBottom();
     final app = context.read<AppState>();
     await app.askAi(text, activeProjectId: _activeProjectId);
-    if (mounted) {
-      setState(() => _sending = false);
-      _scrollBottom();
-    }
+    _followNext = false;
+    // La réponse remplace l'indicateur de saisie : son début reste visible
+    // là où l'utilisateur regardait, sans saut jusqu'à sa fin.
+    if (mounted) setState(() => _sending = false);
   }
 
-  void _scrollBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
-        _scroll.animateTo(
+  /// Va au dernier message. Les éléments de la liste sont construits à la
+  /// demande : la hauteur totale n'est connue qu'en approchant du bas, d'où
+  /// le saut final pour atteindre la vraie fin.
+  void _scrollToEnd({bool animate = true}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || !_scroll.hasClients) return;
+      if (animate) {
+        await _scroll.animateTo(
           _scroll.position.maxScrollExtent,
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
         );
       }
+      for (var i = 0; i < 3 && mounted && _scroll.hasClients; i++) {
+        final max = _scroll.position.maxScrollExtent;
+        if (_scroll.position.pixels >= max - 1) break;
+        _scroll.jumpTo(max);
+        await WidgetsBinding.instance.endOfFrame;
+      }
     });
+  }
+
+  /// Défilement automatique, décidé une fois par construction de l'écran.
+  void _autoScroll(int itemCount, double keyboardInset) {
+    if (itemCount > _lastItemCount && (_atBottom || _followNext)) {
+      _scrollToEnd(animate: _lastItemCount > 0);
+    }
+    if (keyboardInset > _lastKeyboardInset && _atBottom) {
+      _scrollToEnd(animate: false);
+    }
+    _lastItemCount = itemCount;
+    _lastKeyboardInset = keyboardInset;
   }
 
   @override
@@ -73,6 +125,8 @@ class _StudioScreenState extends State<StudioScreen> {
     final app = context.watch<AppState>();
     final chats = app.data.chats;
     final active = app.data.projectById(_activeProjectId);
+    final itemCount = chats.length + (_sending ? 1 : 0);
+    _autoScroll(itemCount, MediaQuery.viewInsetsOf(context).bottom);
 
     return Scaffold(
       appBar: AppBar(
@@ -87,44 +141,53 @@ class _StudioScreenState extends State<StudioScreen> {
       body: Column(
         children: [
           Expanded(
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (notif) {
-                if (notif.metrics.maxScrollExtent > 0 &&
-                    notif.metrics.pixels >=
-                        notif.metrics.maxScrollExtent - 8) {
-                  _scrollBottom();
-                }
-                return false;
-              },
-              child: chats.isEmpty && !_sending
-                  ? _WelcomePanel(onPrompt: _send)
-                  : ListView.builder(
-                      controller: _scroll,
-                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                      itemCount: chats.length + (_sending ? 1 : 0),
-                      itemBuilder: (context, i) {
-                        if (_sending && i == chats.length) {
-                          return const _TypingBubble();
-                        }
-                        final turn = chats[i];
-                        final projectId = (turn.payload?['projectId'] as String?) ??
-                            _activeProjectId;
-                        return _MessageBubble(
-                          turn: turn,
-                          contextProjectId: projectId,
-                          onOpenProject: (id) => _openProject(context, id),
-                          onAskPlan: (id) => _askPlan(id),
-                          onAskEvaluate: (id) => _askEvaluate(id),
-                          onInventSpark: (spark) => _inventSpark(spark),
-                          onSaveSpark: (spark) => _saveSpark(spark),
-                          onCreateFromEvaluation: (evalMap) =>
-                              _createFromEvaluation(evalMap),
-                          onSetActive: (id) =>
-                              setState(() => _activeProjectId = id),
-                        );
-                      },
-                    ),
-            ),
+            child: chats.isEmpty && !_sending
+                ? _WelcomePanel(onPrompt: _send)
+                : Stack(
+                    children: [
+                      // Un seul défilement vertical pour toute la conversation :
+                      // les bulles n'ont jamais de défilement interne.
+                      ListView.builder(
+                        key: const Key('studio-conversation'),
+                        controller: _scroll,
+                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                        itemCount: itemCount,
+                        itemBuilder: (context, i) {
+                          if (_sending && i == chats.length) {
+                            return const _TypingBubble();
+                          }
+                          final turn = chats[i];
+                          final projectId = (turn.payload?['projectId'] as String?) ??
+                              _activeProjectId;
+                          return _MessageBubble(
+                            turn: turn,
+                            contextProjectId: projectId,
+                            technicalMode: app.settings.technicalMode,
+                            onOpenProject: (id) => _openProject(context, id),
+                            onAskPlan: (id) => _askPlan(id),
+                            onAskEvaluate: (id) => _askEvaluate(id),
+                            onInventSpark: (spark) => _inventSpark(spark),
+                            onSaveSpark: (spark) => _saveSpark(spark),
+                            onCreateFromEvaluation: (evalMap) =>
+                                _createFromEvaluation(evalMap),
+                            onSetActive: (id) =>
+                                setState(() => _activeProjectId = id),
+                          );
+                        },
+                      ),
+                      if (!_atBottom)
+                        Positioned(
+                          right: 12,
+                          bottom: 12,
+                          child: FilledButton.tonalIcon(
+                            key: const Key('studio-latest'),
+                            onPressed: () => _scrollToEnd(),
+                            icon: const Icon(Icons.arrow_downward, size: 18),
+                            label: const Text('Dernier message'),
+                          ),
+                        ),
+                    ],
+                  ),
           ),
           if (active != null)
             Container(
@@ -231,6 +294,7 @@ class _StudioScreenState extends State<StudioScreen> {
 class _MessageBubble extends StatelessWidget {
   final ChatTurn turn;
   final String? contextProjectId;
+  final bool technicalMode;
   final void Function(String id) onOpenProject;
   final void Function(String id) onAskPlan;
   final void Function(String id) onAskEvaluate;
@@ -242,6 +306,7 @@ class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.turn,
     required this.contextProjectId,
+    required this.technicalMode,
     required this.onOpenProject,
     required this.onAskPlan,
     required this.onAskEvaluate,
@@ -254,9 +319,8 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isUser = turn.isUser;
 
-    if (isUser) {
+    if (turn.isUser) {
       return Align(
         alignment: Alignment.centerRight,
         child: Container(
@@ -271,15 +335,18 @@ class _MessageBubble extends StatelessWidget {
               bottomRight: Radius.circular(4),
             ),
           ),
-          child: Text(turn.content, style: theme.textTheme.bodyMedium),
+          child: SelectionArea(
+            child: Text(turn.content, style: theme.textTheme.bodyMedium),
+          ),
         ),
       );
     }
 
+    final reply = DisplayReply.fromTurn(turn);
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12, right: 16),
+        margin: const EdgeInsets.only(bottom: 12, right: 8),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -295,7 +362,7 @@ class _MessageBubble extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surfaceContainerHigh,
                   borderRadius: const BorderRadius.only(
@@ -305,9 +372,13 @@ class _MessageBubble extends StatelessWidget {
                     bottomRight: Radius.circular(16),
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: _content(context),
+                // Sélection tactile par appui long ; le glissement vertical
+                // reste au défilement de la conversation.
+                child: SelectionArea(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: _content(context, reply),
+                  ),
                 ),
               ),
             ),
@@ -317,51 +388,46 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  List<Widget> _content(BuildContext context) {
+  List<Widget> _content(BuildContext context, DisplayReply reply) {
+    final theme = Theme.of(context);
     final widgets = <Widget>[
       Row(
         children: [
           Text(_time(turn.createdAt),
-              style: Theme.of(context)
-                  .textTheme
-                  .labelSmall
-                  ?.copyWith(fontSize: 10)),
+              style: theme.textTheme.labelSmall?.copyWith(fontSize: 10)),
           const Spacer(),
-          if (turn.payload?['provider'] != null)
-            Text('${turn.payload!['provider']}',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 10)),
+          if (reply.provider != null)
+            Flexible(
+              child: Text(reply.provider!,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(fontSize: 10)),
+            ),
         ],
       ),
-      const SizedBox(height: 2),
-      Text(turn.content, style: Theme.of(context).textTheme.bodyMedium),
+      const SizedBox(height: 4),
+      RichMessage(reply.message),
     ];
 
-    final payload = turn.payload;
-    if (payload == null) return widgets;
-
-    final projectMap = payload['project'] as Map<String, dynamic>?;
-    final intent = payload['intent'] as String?;
-
-    if (payload['journalText'] != null && payload['intent'] == 'journal') {
+    if (reply.journalText != null && reply.intent == 'journal') {
       widgets.add(Padding(
         padding: const EdgeInsets.only(top: 8),
         child: Row(
           children: [
-            Icon(Icons.menu_book_outlined,
-                size: 15, color: Theme.of(context).colorScheme.primary),
+            Icon(Icons.menu_book_outlined, size: 15, color: theme.colorScheme.primary),
             const SizedBox(width: 6),
-            Text('Note ajoutée au journal',
-                style: Theme.of(context).textTheme.labelMedium),
+            Text('Note ajoutée au journal', style: theme.textTheme.labelMedium),
           ],
         ),
       ));
     }
 
-    if (projectMap != null) {
-      final project = InventionProject.fromJson(projectMap);
-      final id = payload['projectId'] as String?;
-      widgets.add(ProjectResponseCard(
+    final project = reply.project;
+    if (project != null) {
+      final id = reply.projectId;
+      widgets.add(InventionResultCard(
         project: project,
+        plan: reply.intent == 'plan' ? reply.plan : null,
+        partial: reply.partial,
         onOpen: id == null ? null : () => onOpenProject(id),
         onPlan: id == null ? null : () => onAskPlan(id),
         onEvaluate: id == null ? null : () => onAskEvaluate(id),
@@ -376,45 +442,104 @@ class _MessageBubble extends StatelessWidget {
           ),
         ));
       }
-    }
-
-    final evalMap = payload['evaluation'] as Map<String, dynamic>?;
-    if (intent == 'evaluate' && evalMap != null) {
-      final evaluation = IdeaEvaluation.fromJson(evalMap);
-      widgets.add(EvaluationResponseCard(
-        evaluation: evaluation,
-        onCreateProject: () => onCreateFromEvaluation(evalMap),
+    } else if (reply.plan != null && reply.plan!.steps.isNotEmpty) {
+      // Plan seul (sans fiche projet) : étapes et précautions.
+      widgets.add(Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ConstructionSteps(reply.plan!.steps, initiallyExpanded: true),
+            SafetyWarnings([for (final s in reply.plan!.steps) s.safety]),
+          ],
+        ),
       ));
     }
 
-    final sparkMap = payload['spark'] as Map<String, dynamic>?;
-    if (sparkMap != null) {
-      final spark = SparkContent.fromJson(sparkMap);
-      final sparkId = payload['sparkId'] as String?;
-      final alreadySaved = sparkId != null &&
-          (context.read<AppState>().data.sparks.any((s) => s.id == sparkId) ||
-              sparkIdsMatch(context, spark));
+    final evaluation = reply.evaluation;
+    if (reply.intent == 'evaluate' && evaluation != null) {
+      widgets.add(EvaluationResponseCard(
+        evaluation: evaluation,
+        onCreateProject: () => onCreateFromEvaluation(reply.evaluationJson ?? evaluation.toJson()),
+      ));
+    }
+
+    final spark = reply.spark;
+    if (spark != null) {
+      final sparks = context.read<AppState>().data.sparks;
+      final alreadySaved = sparks.any((s) => s.id == reply.sparkId) ||
+          sparks.any((s) => s.title == spark.title && s.pitch == spark.pitch);
       widgets.add(SparkResponseCard(
         spark: spark,
         onInvent: () => onInventSpark(spark),
-        onSave: alreadySaved
-            ? null
-            : () => onSaveSpark(spark),
+        onSave: alreadySaved ? null : () => onSaveSpark(spark),
       ));
+    }
+
+    if (reply.partial && project == null) {
+      widgets.add(Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text('Réponse incomplète ou mal formée, récupérée au mieux.',
+            style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.error)),
+      ));
+    }
+
+    if (technicalMode && reply.raw != null) {
+      widgets.add(_RawJsonPanel(raw: reply.raw!));
     }
 
     return widgets;
   }
 
-  bool sparkIdsMatch(BuildContext context, SparkContent spark) {
-    return context
-        .read<AppState>()
-        .data
-        .sparks
-        .any((s) => s.title == spark.title && s.pitch == spark.pitch);
-  }
-
   String _time(DateTime d) => DateFormat('HH:mm').format(d);
+}
+
+/// Mode technique : texte d'origine renvoyé par le modèle (secrets masqués).
+class _RawJsonPanel extends StatelessWidget {
+  final String raw;
+  const _RawJsonPanel({required this.raw});
+
+  /// Au-delà, l'affichage est tronqué (le texte complet reste copiable).
+  static const _maxShown = 20000;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = redactSecrets(raw);
+    final shown = text.length > _maxShown
+        ? '${text.substring(0, _maxShown)}\n… (${text.length - _maxShown} caractères non affichés)'
+        : text;
+    return CollapsibleSection(
+      title: 'JSON d\'origine',
+      icon: Icons.data_object,
+      badge: '${text.length} car.',
+      initiallyExpanded: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(shown,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 11)),
+          ),
+          TextButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: text));
+              ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('JSON copié.')));
+            },
+            icon: const Icon(Icons.copy, size: 16),
+            label: const Text('Copier'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _TypingBubble extends StatelessWidget {

@@ -13,6 +13,7 @@ class AppSettings {
   static const String kInventorName = 'inventor_name';
   static const String kLastSparkDate = 'last_spark_date';
   static const String kSparkCount = 'spark_count_today';
+  static const String kTechnicalMode = 'technical_mode';
 
   final String aiProvider;
   final String aiBaseUrl;
@@ -25,6 +26,9 @@ class AppSettings {
   final String lastSparkDate;
   final int sparkCountToday;
 
+  /// Affiche le JSON d'origine des réponses IA (secrets masqués).
+  final bool technicalMode;
+
   const AppSettings({
     this.aiProvider = 'local',
     this.aiBaseUrl = 'https://api.openai.com/v1',
@@ -36,6 +40,7 @@ class AppSettings {
     this.inventorName = 'Nabu',
     this.lastSparkDate = '',
     this.sparkCountToday = 0,
+    this.technicalMode = false,
   });
 
   bool get useCloud => aiProvider == 'openai';
@@ -54,6 +59,7 @@ class AppSettings {
     String? inventorName,
     String? lastSparkDate,
     int? sparkCountToday,
+    bool? technicalMode,
   }) =>
       AppSettings(
         aiProvider: aiProvider ?? this.aiProvider,
@@ -66,6 +72,7 @@ class AppSettings {
         inventorName: inventorName ?? this.inventorName,
         lastSparkDate: lastSparkDate ?? this.lastSparkDate,
         sparkCountToday: sparkCountToday ?? this.sparkCountToday,
+        technicalMode: technicalMode ?? this.technicalMode,
       );
 }
 
@@ -111,6 +118,7 @@ class SettingsService {
       inventorName: prefs.getString(AppSettings.kInventorName) ?? 'Nabu',
       lastSparkDate: prefs.getString(AppSettings.kLastSparkDate) ?? '',
       sparkCountToday: prefs.getInt(AppSettings.kSparkCount) ?? 0,
+      technicalMode: prefs.getBool(AppSettings.kTechnicalMode) ?? false,
     );
   }
 
@@ -137,6 +145,7 @@ class SettingsService {
     await prefs.setString(AppSettings.kInventorName, settings.inventorName);
     await prefs.setString(AppSettings.kLastSparkDate, settings.lastSparkDate);
     await prefs.setInt(AppSettings.kSparkCount, settings.sparkCountToday);
+    await prefs.setBool(AppSettings.kTechnicalMode, settings.technicalMode);
   }
 
   ThemeMode _themeFromName(String? name) {

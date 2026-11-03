@@ -16,6 +16,10 @@ class OpenAICompatibleProvider extends AiProvider {
     this.model = 'gpt-4o-mini',
   });
 
+  /// Limite de longueur des réponses. Une invention complète avec son plan
+  /// dépasse 1 800 tokens : la réponse était coupée et son JSON illisible.
+  static const maxOutputTokens = 4096;
+
   @override
   String get name => 'API compatible OpenAI ($model)';
 
@@ -67,7 +71,7 @@ class OpenAICompatibleProvider extends AiProvider {
     // mémorisé pour ce couple URL + modèle.
     final key = '${endpoint.toString()}|${model.trim()}';
     final options = _optionsByModel.putIfAbsent(
-        key, () => {'temperature': 0.8, 'max_tokens': 1800});
+        key, () => {'temperature': 0.8, 'max_tokens': maxOutputTokens});
 
     http.Response res;
     for (var attempt = 0;; attempt++) {
