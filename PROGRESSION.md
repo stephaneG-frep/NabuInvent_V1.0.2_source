@@ -8,14 +8,14 @@ Branche de travail : `atelier-invention` (créée depuis `release-1.0.3`).
 | 1. JSON brut + défilement | ✅ | Décodage tolérant, fiches structurées, défilement libre ; vérifié sur le Honor |
 | 2. Atelier / concepts | ✅ | Concepts par objet (3 variantes), mode ressources, onglet Atelier ; vérifié sur le Honor avec Claude |
 | 3. Photo des matériaux | ✅ | Analyse multimodale réelle + consentement + correction ; analyse réelle à valider avec une vraie photo |
-| 4. Concepteur technique | ⬜ | |
-| 5. Studio visuel | ⬜ | |
-| 6. Mémoire du projet | ⬜ | |
-| 7. Fabrication guidée | ⬜ | |
-| 8. Sécurité | ⬜ | |
-| 9. Exports | ⬜ | |
-| 10. Design | ⬜ | |
-| 11–12. Qualité, tests, livraison | ⬜ | |
+| 4. Concepteur technique | ✅ | Fiche avec provenance des données, calculateur testé, plans calculés ; vérifié sur le Honor |
+| 5. Studio visuel | ✅ | Vrai fournisseur /images/generations, styles, modifications, versions ; « non configuré » sinon |
+| 6. Mémoire du projet | ✅ | Versions restaurables, contraintes mémorisées, références « le deuxième » |
+| 7. Fabrication guidée | ✅ | « On le fabrique ! » : étape par page, progression, aide IA |
+| 8. Sécurité | ✅ | Contrôles déterministes, validation professionnelle signalée |
+| 9. Exports | ✅ | PDF, PNG, JSON, ZIP ; sélecteur Android sans permission ; vérifié sur le Honor |
+| 10. Design | ✅ | Teintes cuivre/bronze, onglet Atelier, cartes repliables, typographie |
+| 11–12. Qualité, tests, livraison | ⏳ | |
 
 ## Journal
 
@@ -89,3 +89,60 @@ empreinte vérifiée identique (SHA-256 5F:D8:FA:32…), `android/key.properties
   l'analyse d'une vraie photo reste à valider par l'utilisateur.
 
 **Contrôles** : `flutter analyze` OK ; 63 tests.
+
+### Phase 4 — Concepteur technique
+- `lib/models/tech_sheet.dart` : pièces (forme, **orientation**, quantité, cotes en mm, position,
+  fixation, prix), dimensions d'ensemble, fixations, finitions, précautions, inconnues.
+  Chaque donnée porte sa **provenance** : mesure utilisateur / hypothèse IA / calculé / inconnu.
+- État du plan **calculé** (jamais déclaré par l'IA) : incomplet (cotes manquantes) → indicatif
+  (hypothèses) → cotes vérifiées par l'utilisateur.
+- Fusion d'une proposition IA : **une mesure de l'utilisateur n'est jamais écrasée**.
+- `lib/tech/material_calculator.dart` (fonctions pures testées) : plan de découpe des barres
+  (premier ajustement décroissant, trait de scie, chutes, pièces trop longues), surfaces,
+  volumes, tôle de conserves, budget avec pièces non chiffrées.
+- `lib/widgets/tech_drawings.dart` : vues face / profil / dessus / éclatée / assemblage
+  numéroté et plan de découpe, calculés à partir des cotes (filigrane « PLAN INDICATIF »).
+- Contrat IA `techsheet` ; moteur local : fiche construite depuis les matériaux, **cotes
+  inconnues** (`lib/tech/tech_sheet_builder.dart`).
+- `lib/screens/technical_screen.dart` : Fiche / Pièces / Plans, saisie des mesures,
+  suppression de la fiche.
+
+### Phase 5 — Studio visuel
+- `lib/ai/image_generator.dart` : client `/images/generations` (b64 ou URL, retrait des
+  paramètres refusés), styles Réaliste, Rustique, Industriel, Fantaisiste, Artistique,
+  Minimaliste, prompt construit à partir du projet et de ses contraintes.
+- Réglages → Génération d'images (URL, modèle, clé chiffrée). Sans service : « non configurée ».
+- `lib/screens/visual_studio_screen.dart` : confirmation du coût, modifications en langage
+  naturel (notées dans le projet), versions conservées, rappel aperçu ≠ plan.
+
+### Phase 6 — Mémoire du projet
+- Instantané avant chaque modification par l'IA (plan, mise à jour, fiche technique,
+  suppression de fiche) ; restauration qui conserve l'état courant (`VersionsScreen`).
+- Contraintes exprimées sur le projet actif mémorisées (`designNotes`) et envoyées à l'IA.
+- Références aux concepts : liste numérotée transmise au modèle ; en local, « le deuxième me
+  plaît » crée directement le projet correspondant.
+
+### Phase 7 — « On le fabrique ! »
+- `lib/screens/build_mode_screen.dart` : objectif, matériaux, outils, instructions, cotes,
+  conseils, précautions, case Terminé, progression et étape courante sauvegardées ; aide
+  « plus simplement », « sans cet outil », « autre méthode », « pourquoi ? ».
+
+### Phase 8 — Sécurité
+- `lib/tech/safety_checker.dart` : bords coupants, récipients réutilisés, corrosion, humidité,
+  eau stagnante, stabilité, charge humaine et 230 V (validation professionnelle), électricité,
+  produits chimiques, soudure, outils, enfants ; avertissement « ne garantit pas la sécurité ».
+
+### Phase 9 — Exports
+- `lib/export/project_exporter.dart` : PDF (police DejaVu embarquée pour ≈ × € œ), PNG des
+  vues et découpes rendus hors écran, JSON structuré (projet + calculs + sécurité,
+  réimportable), ZIP complet. `lib/screens/export_screen.dart` : Enregistrer (sélecteur
+  Android, aucune permission) ou Partager. Tout fonctionne hors ligne.
+
+### Phase 10 — Design
+- Teintes Cuivre et Bronze (Cuivre par défaut pour les nouvelles installations), titres
+  renforcés, bannière d'atelier, cartes et sections repliables, onglet Atelier.
+
+**Contrôles** : `flutter analyze` OK ; 83 tests ; vérifié sur le Honor : conception technique,
+plan dessiné (900 × 18 mm), export PDF/ZIP/JSON/PNG, sélecteur d'enregistrement Android.
+Bugs trouvés en route et corrigés : orientation des pièces dans les vues, titre de sécurité
+qui débordait, badge « Mesure utilisateur » sur une pièce sans cote, onglet tronqué.

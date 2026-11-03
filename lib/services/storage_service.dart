@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -82,6 +83,27 @@ class StorageService {
     }
     // rename() remplace le fichier de façon atomique : jamais de fichier à moitié écrit.
     await tmp.rename(file.path);
+  }
+
+  /// Enregistre une image générée dans le dossier de l'application.
+  Future<String> saveImage(String projectId, String name, Uint8List bytes) async {
+    final dir = Directory('${(await _appDir()).path}/images/$projectId');
+    if (!await dir.exists()) await dir.create(recursive: true);
+    final file = File('${dir.path}/$name.png');
+    await file.writeAsBytes(bytes, flush: true);
+    return file.path;
+  }
+
+  Future<void> deleteFile(String path) async {
+    final f = File(path);
+    if (await f.exists()) await f.delete();
+  }
+
+  /// Dossier temporaire pour les exports à partager.
+  Future<Directory> exportDir() async {
+    final dir = Directory('${(await _appDir()).path}/exports');
+    if (!await dir.exists()) await dir.create(recursive: true);
+    return dir;
   }
 
   Future<String> exportBackup(AppData data) async {

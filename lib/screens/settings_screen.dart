@@ -19,6 +19,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _baseUrl = TextEditingController();
   final _apiKey = TextEditingController();
   final _model = TextEditingController();
+  final _imgUrl = TextEditingController();
+  final _imgKey = TextEditingController();
+  final _imgModel = TextEditingController();
   bool _testing = false;
 
   @override
@@ -26,6 +29,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _baseUrl.dispose();
     _apiKey.dispose();
     _model.dispose();
+    _imgUrl.dispose();
+    _imgKey.dispose();
+    _imgModel.dispose();
     super.dispose();
   }
 
@@ -39,6 +45,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_model.text != app.settings.aiModel) {
       _model.text = app.settings.aiModel;
     }
+    if (_imgUrl.text != app.settings.imageBaseUrl) _imgUrl.text = app.settings.imageBaseUrl;
+    if (_imgKey.text != app.settings.imageApiKey) _imgKey.text = app.settings.imageApiKey;
+    if (_imgModel.text != app.settings.imageModel) _imgModel.text = app.settings.imageModel;
   }
 
   @override
@@ -165,6 +174,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                   ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          const SectionHeader('Génération d\'images'),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(app.imageGenerator != null ? Icons.check_circle : Icons.info_outline,
+                        size: 18,
+                        color: app.imageGenerator != null ? Colors.green : theme.colorScheme.outline),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        app.imageGenerator != null
+                            ? 'Configurée : les aperçus du Studio visuel sont disponibles.'
+                            : 'Non configurée : le Studio visuel reste désactivé.',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Service compatible OpenAI « /images/generations » (ex. OpenAI gpt-image-1). '
+                    'Chaque image est facturée par le fournisseur. Anthropic (Claude) ne génère pas '
+                    'd\'images : il faut une clé distincte.',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant, height: 1.4),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _imgUrl,
+                    keyboardType: TextInputType.url,
+                    decoration: const InputDecoration(labelText: 'URL du service d\'images'),
+                    onChanged: (v) => app.updateSettings(app.settings.copyWith(imageBaseUrl: v)),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _imgKey,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                        labelText: 'Clé API images', helperText: 'Chiffrée sur l\'appareil.'),
+                    onChanged: (v) => app.updateSettings(app.settings.copyWith(imageApiKey: v)),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _imgModel,
+                    decoration: const InputDecoration(labelText: 'Modèle d\'images', hintText: 'gpt-image-1'),
+                    onChanged: (v) => app.updateSettings(app.settings.copyWith(imageModel: v)),
+                  ),
                 ],
               ),
             ),

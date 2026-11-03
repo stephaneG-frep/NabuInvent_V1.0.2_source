@@ -12,7 +12,12 @@ class AppThemes {
     Color(0xFFF6BF26),
     Color(0xFF3949AB),
     Color(0xFFE53935),
+    Color(0xFFB4652F),
+    Color(0xFF8C6A3F),
   ];
+
+  /// Couleur des nouvelles installations : le cuivre de l'atelier.
+  static const int defaultAccent = 10;
 
   static const List<String> accentNames = [
     'Violet',
@@ -25,6 +30,8 @@ class AppThemes {
     'Or',
     'Indigo',
     'Rouge',
+    'Cuivre',
+    'Bronze',
   ];
 
   static ThemeData light(Color seed) => _build(Brightness.light, seed);
@@ -37,6 +44,16 @@ class AppThemes {
       useMaterial3: true,
       colorScheme: scheme,
       brightness: brightness,
+      textTheme: Typography.material2021(platform: TargetPlatform.android)
+          .englishLike
+          .apply(
+            bodyColor: scheme.onSurface,
+            displayColor: scheme.onSurface,
+          )
+          .copyWith(
+            titleLarge: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.2),
+            titleMedium: const TextStyle(fontWeight: FontWeight.w700),
+          ),
       appBarTheme: AppBarTheme(
         centerTitle: false,
         backgroundColor: brightness == Brightness.light

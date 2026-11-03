@@ -8,6 +8,13 @@ import '../widgets/common.dart';
 import 'journal_screen.dart';
 import 'plan_screen.dart';
 import 'studio_screen.dart';
+import '../tech/safety_checker.dart';
+import '../widgets/invention_sections.dart';
+import 'build_mode_screen.dart';
+import 'export_screen.dart';
+import 'technical_screen.dart';
+import 'versions_screen.dart';
+import 'visual_studio_screen.dart';
 
 class ProjectDetailScreen extends StatefulWidget {
   final String projectId;
@@ -144,6 +151,51 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          _Section('Atelier du projet', [
+            _AtelierTile(
+              icon: Icons.architecture,
+              title: 'Conception technique',
+              subtitle: p.tech == null
+                  ? 'Fiche, cotes, nomenclature, calculs et plans'
+                  : p.tech!.readiness.label,
+              onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => TechnicalScreen(projectId: p.id))),
+            ),
+            _AtelierTile(
+              icon: Icons.construction,
+              title: 'On le fabrique !',
+              subtitle: p.hasPlan
+                  ? 'Étape ${p.currentStep + 1} sur ${p.plan.steps.length} · ${p.plan.completedCount} terminée(s)'
+                  : 'Disponible une fois le plan créé',
+              onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => BuildModeScreen(projectId: p.id))),
+            ),
+            _AtelierTile(
+              icon: Icons.image_outlined,
+              title: 'Studio visuel',
+              subtitle: p.visuals.isEmpty
+                  ? 'Aperçus artistiques générés par IA'
+                  : '${p.visuals.length} aperçu(s)',
+              onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => VisualStudioScreen(projectId: p.id))),
+            ),
+            _AtelierTile(
+              icon: Icons.history,
+              title: 'Versions et contraintes',
+              subtitle: '${p.versions.length} version(s) · ${p.designNotes.length} contrainte(s)',
+              onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => VersionsScreen(projectId: p.id))),
+            ),
+            _AtelierTile(
+              icon: Icons.ios_share,
+              title: 'Exporter',
+              subtitle: 'PDF, ZIP, JSON, schémas PNG',
+              onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => ExportScreen(projectId: p.id))),
+            ),
+            SafetyWarnings([for (final f in SafetyChecker.checkProject(p)) f.text]),
+          ]),
           const SizedBox(height: 14),
           _Section(
             'Journal du projet',
@@ -295,6 +347,29 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AtelierTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _AtelierTile({required this.icon, required this.title, required this.subtitle, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        child: Icon(icon, size: 20),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
     );
   }
 }

@@ -288,9 +288,11 @@ class SafetyWarnings extends StatelessWidget {
             children: [
               const Icon(Icons.health_and_safety_outlined, size: 18, color: amber),
               const SizedBox(width: 6),
-              Text('Conseils et précautions',
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w700, color: amber)),
+              Expanded(
+                child: Text('Conseils et précautions',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700, color: amber)),
+              ),
             ],
           ),
           const SizedBox(height: 6),

@@ -4,6 +4,7 @@ import 'dart:math';
 import '../models/idea_evaluation.dart';
 import '../models/invention_project.dart';
 import '../models/json_utils.dart';
+import '../tech/tech_sheet_builder.dart';
 import 'ai_provider.dart';
 import 'offline_atelier.dart';
 import 'ai_response.dart';
@@ -97,6 +98,12 @@ class OfflineEngine extends AiProvider {
     }
     if (text.length < 6) {
       return _menu('Donne-moi un peu plus de matière : quel problème veux-tu résoudre ?');
+    }
+
+    // Fiche technique : construite sans IA à partir du projet en cours, cotes
+    // laissées inconnues (le moteur local ne devine aucune dimension).
+    if (RegExp(r'fiche technique|nomenclature|\bcotes?\b').hasMatch(text)) {
+      return _techSheet(projectContext);
     }
 
     // « Je voudrais fabriquer un canard et un héron… », « J'ai des boîtes…
@@ -705,6 +712,29 @@ class OfflineEngine extends AiProvider {
       message: 'Voici trois pistes pour $what$with_$dest : une version rustique, une '
           'articulée et une stylisée. Choisis celle qui te plaît pour en faire un projet.'
           '\n\n$_localNotice',
+    );
+  }
+
+  NabuAiResponse _techSheet(String? projectContext) {
+    InventionProject? project;
+    try {
+      if (projectContext != null && projectContext.isNotEmpty) {
+        project = InventionProject.fromJson(jsonDecode(projectContext) as Map<String, dynamic>);
+      }
+    } catch (_) {}
+    if (project == null) {
+      return _menu('Ouvre d\'abord un projet (bouton « Continuer sur ce projet ») pour que '
+          'je prépare sa fiche technique.');
+    }
+    final sheet = TechSheetBuilder.fromProject(project);
+    return NabuAiResponse(
+      provider: name,
+      intent: AiIntent.techsheet,
+      project: InventionProject(id: project.id, title: project.title),
+      techSheet: sheet,
+      message: 'Fiche technique préparée pour « ${project.title} » : ${sheet.parts.length} pièce(s) '
+          'tirée(s) des matériaux. Les cotes sont à mesurer et à saisir dans l\'onglet Pièces : '
+          'le mode local ne devine aucune dimension.',
     );
   }
 

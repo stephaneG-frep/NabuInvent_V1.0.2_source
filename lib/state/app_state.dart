@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../ai/ai_provider.dart';
 import '../ai/ai_response.dart';
+import '../ai/image_generator.dart';
 import '../ai/offline_engine.dart';
 import '../ai/openai_provider.dart';
 import '../models/app_data.dart';
@@ -15,6 +16,7 @@ import '../models/concept.dart';
 import '../models/invention_project.dart';
 import '../models/journal_entry.dart';
 import '../models/spark.dart';
+import '../models/tech_sheet.dart';
 import '../services/settings_service.dart';
 import '../services/storage_service.dart';
 
@@ -159,6 +161,18 @@ class AppState extends ChangeNotifier {
 
     // Le message de l'utilisateur s'affiche tout de suite, sans attendre l'IA.
     _appendTurn(userText, activeProjectId: activeProjectId);
+    if (ctxProject != null) _rememberConstraint(ctxProject, userText);
+
+    // Mode local : « le deuxième me plaît » désigne un concept déjà proposé.
+    if (!provider.isCloud) {
+      final local = _resolveConceptChoice(userText);
+      if (local != null) {
+        await _persist();
+        notifyListeners();
+        return local;
+      }
+    }
+
     _pendingAi++;
     notifyListeners();
 
@@ -168,7 +182,7 @@ class AppState extends ChangeNotifier {
         userText: userText,
         history: history,
         projectContext:
-            ctxProject == null ? null : jsonEncode(ctxProject.toJson()),
+            ctxProject == null ? null : jsonEncode(ctxProject.toSnapshotJson()),
       );
     } finally {
       _pendingAi--;
@@ -197,6 +211,74 @@ class AppState extends ChangeNotifier {
   Future<void> rememberPhotoConsent() =>
       updateSettings(settings.copyWith(photoConsentUrl: settings.aiBaseUrl.trim()));
 
+  /// Service de génération d'images configuré, ou null (fonction indiquée
+  /// comme non configurée, jamais simulée).
+  ImageGenerator? get imageGenerator {
+    final g = OpenAIImageGenerator(
+      baseUrl: settings.imageBaseUrl,
+      apiKey: settings.imageApiKey,
+      model: settings.imageModel,
+    );
+    return g.isConfigured ? g : null;
+  }
+
+  /// Génère un aperçu artistique. Une modification (« allonge le cou ») est
+  /// aussi notée dans le projet : le concept évolue, l'ancienne image reste.
+  Future<VisualVersion> generateVisual(
+    String projectId, {
+    required String style,
+    List<String> modifications = const [],
+    String? newModification,
+  }) async {
+    final generator = imageGenerator;
+    final p = data.projectById(projectId);
+    if (generator == null) throw StateError('Aucun service d\'images configuré.');
+    if (p == null) throw StateError('Projet introuvable.');
+    final mods = [...modifications, if (newModification != null && newModification.trim().isNotEmpty) newModification.trim()];
+    final prompt = buildVisualPrompt(p, style, mods);
+    _pendingAi++;
+    notifyListeners();
+    try {
+      final bytes = await generator.generate(prompt);
+      final version = VisualVersion(style: style, modifications: mods, prompt: prompt, filePath: '', provider: generator.name);
+      final path = await storageService.saveImage(projectId, version.id, bytes);
+      final saved = VisualVersion(
+        id: version.id,
+        style: style,
+        modifications: mods,
+        prompt: prompt,
+        filePath: path,
+        provider: generator.name,
+      );
+      final current = data.projectById(projectId) ?? p;
+      current.visuals = [...current.visuals, saved];
+      if (newModification != null && newModification.trim().isNotEmpty) {
+        current.designNotes = [...current.designNotes, 'Aperçu : ${newModification.trim()}'];
+      }
+      current.touch();
+      _replaceProject(current);
+      await _persist();
+      return saved;
+    } finally {
+      _pendingAi--;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteVisual(String projectId, String visualId) async {
+    final p = data.projectById(projectId);
+    if (p == null) return;
+    final v = p.visuals.where((e) => e.id == visualId).firstOrNull;
+    if (v == null) return;
+    try {
+      await storageService.deleteFile(v.filePath);
+    } catch (_) {}
+    p.visuals = [for (final e in p.visuals) if (e.id != visualId) e];
+    _replaceProject(p);
+    await _persist();
+    notifyListeners();
+  }
+
   /// Transforme un concept choisi en projet (sans appel à l'IA) et renvoie
   /// l'id du projet créé.
   String adoptConcept(InventionConcept concept) {
@@ -215,6 +297,121 @@ class AppState extends ChangeNotifier {
     _persist();
     notifyListeners();
     return project.id;
+  }
+
+  static final _constraintPattern = RegExp(
+      r"^(?:je n'ai que|j'ai seulement|je n'ai pas de|je n'ai plus de|je veux eviter|j'aimerais eviter|"
+      r"je prefere|je voudrais eviter|sans |pas de |il faut que|ca doit|il doit|elle doit|"
+      r"pas plus de|moins de|au maximum|maximum )");
+
+  /// Mémorise une contrainte exprimée sur le projet en cours (« je n'ai que
+  /// quatre boîtes », « je veux éviter la soudure ») : elle accompagne ensuite
+  /// le projet dans chaque demande à l'IA.
+  void _rememberConstraint(InventionProject p, String text) {
+    final t = text.trim();
+    if (t.isEmpty || t.length > 240) return;
+    if (!_constraintPattern.hasMatch(_normalize(t))) return;
+    if (p.designNotes.contains(t)) return;
+    p.designNotes = [...p.designNotes, t];
+    _replaceProject(p);
+  }
+
+  static String _normalize(String s) {
+    const from = 'àáâäãåçèéêëìíîïòóôöõùúûüýÿñ';
+    const to = 'aaaaaaceeeeiiiiooooouuuuyyn';
+    final b = StringBuffer();
+    for (final ch in s.toLowerCase().split('')) {
+      final i = from.indexOf(ch);
+      b.write(i >= 0 ? to[i] : ch);
+    }
+    return b.toString();
+  }
+
+  static const _ordinals = {
+    1: r'premier|premiere|1er|1re|1ere|un|une|1',
+    2: r'deuxieme|second|seconde|2e|2eme|deux|2',
+    3: r'troisieme|3e|3eme|trois|3',
+    4: r'quatrieme|4e|4eme|4',
+    5: r'cinquieme|5e|5eme|5',
+    6: r'sixieme|6e|6eme|6',
+  };
+
+  /// Concept désigné dans [text] parmi ceux de la dernière proposition :
+  /// par son rang (« le deuxième », « le 2 ») ou par son nom.
+  InventionConcept? conceptReferencedIn(String text) {
+    // Uniquement la proposition la plus récente.
+    final lastTurn = data.chats.reversed
+        .where((t) => !t.isUser && conceptsFromJson(t.payload?['concepts']).isNotEmpty)
+        .firstOrNull;
+    if (lastTurn == null) return null;
+    final latest = conceptsFromJson(lastTurn.payload?['concepts']);
+    final n = _normalize(text);
+    for (final c in latest) {
+      if (c.name.length > 3 && n.contains(_normalize(c.name))) return c;
+    }
+    for (final e in _ordinals.entries) {
+      final re = RegExp(
+          r"(?:\b(?:le|la|l'|numero|n°|no|choix|proposition|variante|concept|option)\s*(?:" +
+              e.value +
+              r")\b)|(?:^\s*(?:" +
+              e.value +
+              r")\b)");
+      if (re.hasMatch(n) && e.key <= latest.length) return latest[e.key - 1];
+    }
+    return null;
+  }
+
+  NabuAiResponse? _resolveConceptChoice(String text) {
+    final n = _normalize(text);
+    if (!RegExp(r'plait|choisi|prends|prendre|retiens|garde|veux|prefere|va pour|celui|celle|developpe')
+        .hasMatch(n)) {
+      return null;
+    }
+    final concept = conceptReferencedIn(text);
+    if (concept == null) return null;
+    final id = adoptConcept(concept);
+    final response = NabuAiResponse(
+      provider: provider.name,
+      intent: AiIntent.invent,
+      project: data.projectById(id),
+      message: 'C\'est noté : « ${concept.name} » devient ton projet. Ses matériaux et repères '
+          'sont repris du concept ; demande « élabore le plan » ou « fiche technique » pour la suite.',
+    );
+    final payload = response.toJson()..['projectId'] = id;
+    data = data.copyWith(chats: [
+      ...data.chats,
+      ChatTurn(role: 'assistant', content: response.message, payload: payload),
+    ]);
+    return response;
+  }
+
+  /// Sauvegarde l'état actuel du projet avant une modification.
+  void _snapshot(InventionProject p, String reason) {
+    p.versions = [
+      ...p.versions,
+      ProjectVersion(reason: reason, snapshot: p.toSnapshotJson()),
+    ];
+    if (p.versions.length > maxVersions) {
+      p.versions = p.versions.sublist(p.versions.length - maxVersions);
+    }
+  }
+
+  static const maxVersions = 20;
+
+  /// Revient à une version antérieure ; l'état actuel est lui-même conservé.
+  void restoreVersion(String projectId, String versionId) {
+    final p = data.projectById(projectId);
+    if (p == null) return;
+    final v = p.versions.where((e) => e.id == versionId).firstOrNull;
+    if (v == null) return;
+    _snapshot(p, 'Avant le retour à la version du ${v.createdAt.day}/${v.createdAt.month}');
+    final restored = InventionProject.fromJson({...v.snapshot, 'id': p.id})
+      ..versions = p.versions
+      ..visuals = p.visuals
+      ..touch();
+    _replaceProject(restored);
+    _persist();
+    notifyListeners();
   }
 
   /// Les 10 derniers tours utiles : les échanges en erreur (et la question qui
@@ -305,6 +502,12 @@ class AppState extends ChangeNotifier {
           data = data.copyWith(projects: [...data.projects, created]);
           projectId = created.id;
         }
+      case AiIntent.techsheet when r.techSheet != null:
+        final target = data.projectById(project?.id) ?? active;
+        if (target != null) {
+          applyTechSheet(target.id, r.techSheet!, persist: false);
+          projectId = target.id;
+        }
       default:
         break;
     }
@@ -343,6 +546,9 @@ class AppState extends ChangeNotifier {
   /// seuls les champs non vides remplacent les valeurs actuelles. Statut,
   /// étoile, date de création et progression sont conservés.
   void _mergeInto(InventionProject target, InventionProject? update, {ProjectPlan? plan}) {
+    _snapshot(target, plan != null && plan.steps.isNotEmpty
+        ? 'Avant le nouveau plan proposé par l\'IA'
+        : 'Avant la mise à jour par l\'IA');
     if (update != null) {
       String pick(String next, String current) =>
           next.trim().isNotEmpty ? next : current;
@@ -367,6 +573,44 @@ class AppState extends ChangeNotifier {
     }
     target.touch();
     _replaceProject(target);
+  }
+
+  /// Intègre une fiche technique au projet. Les mesures déjà saisies par
+  /// l'utilisateur ne sont jamais remplacées par des hypothèses.
+  void applyTechSheet(String projectId, TechSheet proposal, {bool persist = true}) {
+    final p = data.projectById(projectId);
+    if (p == null) return;
+    if (p.tech != null) _snapshot(p, 'Avant la fiche technique proposée par l\'IA');
+    p.tech = p.tech == null ? proposal.copy() : p.tech!.mergedWith(proposal);
+    p.touch();
+    _replaceProject(p);
+    if (persist) {
+      _persist();
+      notifyListeners();
+    }
+  }
+
+  /// Supprime la fiche technique (une copie reste dans les versions).
+  void clearTechSheet(String projectId) {
+    final p = data.projectById(projectId);
+    if (p == null || p.tech == null) return;
+    _snapshot(p, 'Avant la suppression de la fiche technique');
+    p.tech = null;
+    p.touch();
+    _replaceProject(p);
+    _persist();
+    notifyListeners();
+  }
+
+  /// Remplace la fiche technique après modification par l'utilisateur.
+  void updateTechSheet(String projectId, TechSheet sheet) {
+    final p = data.projectById(projectId);
+    if (p == null) return;
+    p.tech = sheet;
+    p.touch();
+    _replaceProject(p);
+    _persist();
+    notifyListeners();
   }
 
   String _titleFrom(String userText) {
@@ -438,6 +682,15 @@ class AppState extends ChangeNotifier {
     _replaceProject(p);
     _persist();
     notifyListeners();
+  }
+
+  /// Mémorise l'étape affichée dans le mode « On le fabrique ! ».
+  void setCurrentStep(String projectId, int index) {
+    final p = data.projectById(projectId);
+    if (p == null || p.currentStep == index) return;
+    p.currentStep = index;
+    _replaceProject(p);
+    _persist();
   }
 
   void updatePlan(String projectId, ProjectPlan plan) {

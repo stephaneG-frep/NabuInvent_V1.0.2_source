@@ -1,0 +1,3 @@
+Polices DejaVu Sans (DejaVuSans.ttf, DejaVuSans-Bold.ttf), utilisées pour les exports PDF.
+Licence libre : Bitstream Vera Fonts Copyright + modifications DejaVu placées dans le domaine public.
+Texte complet : https://dejavu-fonts.github.io/License.html

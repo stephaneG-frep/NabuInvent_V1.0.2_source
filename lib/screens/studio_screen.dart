@@ -12,6 +12,7 @@ import '../models/concept.dart';
 import '../models/invention_project.dart';
 import '../models/spark.dart';
 import '../state/app_state.dart';
+import '../tech/safety_checker.dart';
 import '../widgets/common.dart';
 import '../widgets/concept_cards.dart';
 import '../widgets/invention_sections.dart';
@@ -453,6 +454,7 @@ class _MessageBubble extends StatelessWidget {
       widgets.add(InventionResultCard(
         project: project,
         plan: reply.intent == 'plan' ? reply.plan : null,
+        extraWarnings: [for (final f in SafetyChecker.checkProject(project)) f.text],
         partial: reply.partial,
         onOpen: id == null ? null : () => onOpenProject(id),
         onPlan: id == null ? null : () => onAskPlan(id),
