@@ -43,7 +43,7 @@ class _FakeProvider extends AiProvider {
   bool get isConfigured => true;
   @override
   Future<NabuAiResponse> respond(
-          {required String userText, List<AiTurn> history = const [], String? projectContext}) async =>
+          {required String userText, List<AiTurn> history = const [], String? projectContext, Future<void>? cancel}) async =>
       NabuAiResponse.parse(reply, name);
 }
 

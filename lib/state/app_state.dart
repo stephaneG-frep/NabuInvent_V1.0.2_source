@@ -152,6 +152,16 @@ class AppState extends ChangeNotifier {
 
   int _pendingAi = 0;
 
+  /// Signal d'annulation des demandes en cours (« Annuler » dans le Studio).
+  Completer<void>? _cancel;
+
+  /// Interrompt les demandes à l'IA en cours : la connexion est coupée et la
+  /// réponse n'est pas appliquée.
+  void cancelAi() {
+    final c = _cancel;
+    if (c != null && !c.isCompleted) c.complete();
+  }
+
   /// Une demande à l'IA est en cours (quel que soit l'écran qui l'a lancée).
   bool get aiThinking => _pendingAi > 0;
 
@@ -174,6 +184,7 @@ class AppState extends ChangeNotifier {
     }
 
     _pendingAi++;
+    final cancel = (_cancel == null || _cancel!.isCompleted) ? (_cancel = Completer<void>()) : _cancel!;
     notifyListeners();
 
     final NabuAiResponse response;
@@ -183,6 +194,7 @@ class AppState extends ChangeNotifier {
         history: history,
         projectContext:
             ctxProject == null ? null : jsonEncode(ctxProject.toSnapshotJson()),
+        cancel: cancel.future,
       );
     } finally {
       _pendingAi--;

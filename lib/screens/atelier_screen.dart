@@ -110,10 +110,13 @@ class _AtelierScreenState extends State<AtelierScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: FilledButton.icon(
-                      onPressed: () {
-                        _sendToStudio(_idea.text);
-                        _idea.clear();
-                      },
+                      // Une demande à la fois : pas d'appels en double.
+                      onPressed: app.aiThinking
+                          ? null
+                          : () {
+                              _sendToStudio(_idea.text);
+                              _idea.clear();
+                            },
                       icon: const Icon(Icons.auto_awesome),
                       label: const Text('Proposer des concepts'),
                     ),
@@ -171,7 +174,7 @@ class _AtelierScreenState extends State<AtelierScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: FilledButton.icon(
-                      onPressed: _resources.isEmpty
+                      onPressed: _resources.isEmpty || app.aiThinking
                           ? null
                           : () {
                               _sendToStudio(_resourcesRequest());

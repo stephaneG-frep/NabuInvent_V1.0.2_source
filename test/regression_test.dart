@@ -36,7 +36,7 @@ class _FakeProvider extends AiProvider {
   Future<NabuAiResponse> respond({
     required String userText,
     List<AiTurn> history = const [],
-    String? projectContext,
+    String? projectContext, Future<void>? cancel
   }) async {
     histories.add(history);
     return NabuAiResponse.parse(reply, name);

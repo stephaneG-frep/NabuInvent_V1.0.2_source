@@ -81,6 +81,7 @@ class OfflineEngine extends AiProvider {
     required String userText,
     List<AiTurn> history = const [],
     String? projectContext,
+    Future<void>? cancel,
   }) async {
     final text = stripAccents(userText.trim().toLowerCase());
     final ctx = _parseContext(projectContext);

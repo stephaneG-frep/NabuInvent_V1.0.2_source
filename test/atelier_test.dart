@@ -39,7 +39,7 @@ class _RecordingProvider extends AiProvider {
   bool get isConfigured => true;
   @override
   Future<NabuAiResponse> respond(
-      {required String userText, List<AiTurn> history = const [], String? projectContext}) async {
+      {required String userText, List<AiTurn> history = const [], String? projectContext, Future<void>? cancel}) async {
     histories.add(history);
     return NabuAiResponse.parse(reply, name);
   }

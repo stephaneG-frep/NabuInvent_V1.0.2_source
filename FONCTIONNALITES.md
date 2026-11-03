@@ -1,5 +1,34 @@
 # Fonctionnalités — NabuInvent AI
 
+## Atelier d'invention (1.1)
+
+- **Concepts** : une idée exprimée naturellement (« un canard et un héron en boîtes de
+  conserve ») donne jusqu'à trois variantes réellement différentes **par objet** : style,
+  matériaux, dimensions indicatives, difficulté, temps, budget, avantages, contraintes.
+  Le concept choisi devient un projet.
+- **Inventeur autonome** : à partir des ressources listées, idées classées par faisabilité,
+  avec l'explication de chaque choix.
+- **Photo des matériaux** (cloud multimodal) : reconnaissance des objets visibles,
+  consentement avant envoi, correction, quantités et dimensions saisies par l'utilisateur.
+- **Conception technique** : fiche, nomenclature cotée en mm avec la **provenance** de chaque
+  donnée (mesure utilisateur, hypothèse IA, calculé, inconnu) ; calculs déterministes testés
+  (quantités, longueurs, surfaces, volumes, plan de découpe et chutes, budget) ; vues face,
+  profil, dessus, éclatée, assemblage et plan de découpe dessinés à partir des cotes ; état du
+  plan calculé (incomplet / indicatif / cotes vérifiées).
+- **Studio visuel** : aperçus artistiques via un vrai service d'images (6 styles),
+  modifications en langage naturel, versions conservées ; désactivé s'il n'est pas configuré.
+- **Mémoire du projet** : versions restaurables avant chaque modification par l'IA,
+  contraintes mémorisées, compréhension de « le deuxième me plaît ».
+- **On le fabrique !** : fabrication guidée étape par étape, progression sauvegardée, aide
+  pédagogique (plus simplement, sans cet outil, autre méthode, pourquoi).
+- **Sécurité** : contrôles déterministes (bords coupants, récipients douteux, corrosion,
+  stabilité, électricité, chimie, soudure…), validation professionnelle signalée.
+- **Exports** : PDF, PNG, JSON structuré, ZIP ; enregistrement via le sélecteur Android sans
+  permission de stockage, ou partage.
+- **Réponses lisibles** : plus jamais de JSON brut (réparation des réponses tronquées), fiches
+  repliables, copie, sélection ; défilement libre et bouton « Dernier message » ; annulation
+  d'une demande en cours ; mode technique pour voir le JSON d'origine (clés masquées).
+
 ## Moteur d'IA double
 
 - **Mode local (hors ligne, par défaut)** : un moteur embarqué génère des réponses
@@ -11,7 +40,7 @@
 - Les deux modes partagent le même contrat de réponse : chaque configuration est un
   cas d'usage réel et fonctionnel.
 
-## Étincelles (générateur d'idées)
+## Étincelles (générateur d'idées, dans l'Atelier)
 
 - Génère une invention inattendue à partir de thèmes aléatoires
   (ex. : *kg hydraulique* + *sieste* = « le coussin aubergiste qui agit comme une
@@ -74,7 +103,8 @@
 
 ## Tests & qualité
 
-- 34 tests unitaires couvrant le moteur local (invention, plan, évaluation,
-  étincelle, journal, détection d'intention), le parsing des réponses cloud,
-  l'application des réponses aux projets et la persistance sur disque.
+- 84 tests automatisés : moteur local, détection d'intention, parsing tolérant, rendu et
+  défilement du Studio (réponses de 5 000 à 50 000 caractères), concepts, photo (HTTP simulé),
+  calculs techniques, plans, sécurité, versions, images, exports PDF/PNG/ZIP, annulation,
+  persistance. Détail dans `RAPPORT_TESTS.md`.
 - Analyse statique Flutter : **zéro problème**.

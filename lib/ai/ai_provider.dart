@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:http/http.dart' show RequestAbortedException;
+
 import '../models/material_analysis.dart';
 import 'ai_response.dart';
 
@@ -11,10 +13,13 @@ abstract class AiProvider {
 
   bool get isConfigured;
 
+  /// [cancel] : quand ce futur se termine, la requête en cours est interrompue
+  /// (les fournisseurs locaux, instantanés, peuvent l'ignorer).
   Future<NabuAiResponse> respond({
     required String userText,
     List<AiTurn> history = const [],
     String? projectContext,
+    Future<void>? cancel,
   });
 }
 
@@ -56,6 +61,7 @@ class AiService {
     required String userText,
     List<AiTurn> history = const [],
     String? projectContext,
+    Future<void>? cancel,
   }) async {
     if (!provider.isConfigured) {
       return NabuAiResponse(
@@ -73,6 +79,14 @@ class AiService {
         userText: userText,
         history: history,
         projectContext: projectContext,
+        cancel: cancel,
+      );
+    } on RequestAbortedException {
+      return NabuAiResponse(
+        provider: provider.name,
+        message: 'Demande annulée.',
+        success: false,
+        error: 'cancelled',
       );
     } catch (e) {
       return NabuAiResponse(

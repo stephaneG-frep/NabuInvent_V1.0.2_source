@@ -46,6 +46,7 @@ class OpenAICompatibleProvider extends AiProvider implements VisionProvider {
     required String userText,
     List<AiTurn> history = const [],
     String? projectContext,
+    Future<void>? cancel,
   }) async {
     final messages = [
       {'role': 'system', 'content': AiContract.systemPrompt},
@@ -59,7 +60,7 @@ class OpenAICompatibleProvider extends AiProvider implements VisionProvider {
       },
     ];
 
-    return NabuAiResponse.parse(await _complete(messages), name);
+    return NabuAiResponse.parse(await _complete(messages, cancel: cancel), name);
   }
 
   @override
@@ -88,7 +89,7 @@ class OpenAICompatibleProvider extends AiProvider implements VisionProvider {
   }
 
   /// Envoie une conversation à /chat/completions et renvoie le texte produit.
-  Future<String> _complete(List<Map<String, dynamic>> messages) async {
+  Future<String> _complete(List<Map<String, dynamic>> messages, {Future<void>? cancel}) async {
     final endpoint = _endpoint;
     if (endpoint.scheme != 'https') {
       throw Exception(
@@ -107,20 +108,24 @@ class OpenAICompatibleProvider extends AiProvider implements VisionProvider {
 
     http.Response res;
     for (var attempt = 0;; attempt++) {
-      res = await http
-          .post(
-            endpoint,
-            headers: {
-              'Authorization': 'Bearer ${apiKey.trim()}',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode({
-              'model': model.trim(),
-              'messages': messages,
-              ...options,
-            }),
-          )
-          .timeout(const Duration(seconds: 90));
+      // Requête interruptible : « Annuler » coupe vraiment la connexion.
+      final request = http.AbortableRequest('POST', endpoint, abortTrigger: cancel)
+        ..headers.addAll({
+          'Authorization': 'Bearer ${apiKey.trim()}',
+          'Content-Type': 'application/json',
+        })
+        ..body = jsonEncode({
+          'model': model.trim(),
+          'messages': messages,
+          ...options,
+        });
+      final client = http.Client();
+      try {
+        res = await http.Response.fromStream(
+            await client.send(request).timeout(const Duration(seconds: 90)));
+      } finally {
+        client.close();
+      }
       if (res.statusCode == 200) break;
       final message = _errorMessage(res.body);
       if (res.statusCode != 400 || attempt >= 3 || !_dropRejectedOption(options, message)) {

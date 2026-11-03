@@ -15,7 +15,7 @@ Branche de travail : `atelier-invention` (créée depuis `release-1.0.3`).
 | 8. Sécurité | ✅ | Contrôles déterministes, validation professionnelle signalée |
 | 9. Exports | ✅ | PDF, PNG, JSON, ZIP ; sélecteur Android sans permission ; vérifié sur le Honor |
 | 10. Design | ✅ | Teintes cuivre/bronze, onglet Atelier, cartes repliables, typographie |
-| 11–12. Qualité, tests, livraison | ⏳ | |
+| 11–12. Qualité, tests, livraison | ✅ | Annulation des requêtes, 84 tests, documentation, APK 1.1.0, archive des sources |
 
 ## Journal
 
@@ -146,3 +146,11 @@ empreinte vérifiée identique (SHA-256 5F:D8:FA:32…), `android/key.properties
 plan dessiné (900 × 18 mm), export PDF/ZIP/JSON/PNG, sélecteur d'enregistrement Android.
 Bugs trouvés en route et corrigés : orientation des pièces dans les vues, titre de sécurité
 qui débordait, badge « Mesure utilisateur » sur une pièce sans cote, onglet tronqué.
+
+### Phases 11–12 — Qualité et livraison
+- Annulation réelle des requêtes (`http.AbortableRequest`, bouton « Annuler » du Studio) ;
+  une seule demande à la fois depuis l'Atelier ; coût des images confirmé avant génération.
+- Version 1.1.0+5. Documentation : `README.md`, `GUIDE_UTILISATEUR.md` (mode d'emploi réécrit),
+  `FONCTIONNALITES.md`, `ARCHITECTURE.md`, `CHANGELOG.md`, `RAPPORT_TESTS.md`.
+- Livrables dans `livraison/` (non suivi par git) : APK release signé, archive ZIP des sources.
+- Pas de `.deb` : cible Linux non configurée (documenté).

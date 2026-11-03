@@ -158,7 +158,7 @@ class _StudioScreenState extends State<StudioScreen> {
                         itemCount: itemCount,
                         itemBuilder: (context, i) {
                           if (thinking && i == chats.length) {
-                            return const _TypingBubble();
+                            return _TypingBubble(onCancel: app.cancelAi);
                           }
                           final turn = chats[i];
                           final projectId = (turn.payload?['projectId'] as String?) ??
@@ -581,7 +581,8 @@ class _RawJsonPanel extends StatelessWidget {
 }
 
 class _TypingBubble extends StatelessWidget {
-  const _TypingBubble();
+  final VoidCallback onCancel;
+  const _TypingBubble({required this.onCancel});
 
   @override
   Widget build(BuildContext context) {
@@ -611,6 +612,8 @@ class _TypingBubble extends StatelessWidget {
               height: 12,
               child: LinearProgressIndicator(),
             ),
+            const SizedBox(width: 6),
+            TextButton(onPressed: onCancel, child: const Text('Annuler')),
           ],
         ),
       ),
