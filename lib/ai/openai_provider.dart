@@ -1,11 +1,13 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../models/material_analysis.dart';
 import 'ai_provider.dart';
 import 'ai_response.dart';
 
-class OpenAICompatibleProvider extends AiProvider {
+class OpenAICompatibleProvider extends AiProvider implements VisionProvider {
   final String baseUrl;
   final String apiKey;
   final String model;
@@ -15,6 +17,10 @@ class OpenAICompatibleProvider extends AiProvider {
     this.apiKey = '',
     this.model = 'gpt-4o-mini',
   });
+
+  /// Limite de longueur des réponses. Une invention complète avec son plan
+  /// dépasse 1 800 tokens : la réponse était coupée et son JSON illisible.
+  static const maxOutputTokens = 4096;
 
   @override
   String get name => 'API compatible OpenAI ($model)';
@@ -40,6 +46,7 @@ class OpenAICompatibleProvider extends AiProvider {
     required String userText,
     List<AiTurn> history = const [],
     String? projectContext,
+    Future<void>? cancel,
   }) async {
     final messages = [
       {'role': 'system', 'content': AiContract.systemPrompt},
@@ -53,6 +60,36 @@ class OpenAICompatibleProvider extends AiProvider {
       },
     ];
 
+    return NabuAiResponse.parse(await _complete(messages, cancel: cancel), name);
+  }
+
+  @override
+  Future<MaterialAnalysis> analyzeMaterials({
+    required Uint8List imageBytes,
+    required String mimeType,
+    String note = '',
+  }) async {
+    final messages = [
+      {
+        'role': 'user',
+        'content': [
+          {
+            'type': 'text',
+            'text': '${MaterialAnalysis.prompt}'
+                '${note.trim().isEmpty ? '' : '\n\nPrécision de l\'utilisateur : ${note.trim()}'}',
+          },
+          {
+            'type': 'image_url',
+            'image_url': {'url': 'data:$mimeType;base64,${base64Encode(imageBytes)}'},
+          },
+        ],
+      },
+    ];
+    return MaterialAnalysis.parse(await _complete(messages), name);
+  }
+
+  /// Envoie une conversation à /chat/completions et renvoie le texte produit.
+  Future<String> _complete(List<Map<String, dynamic>> messages, {Future<void>? cancel}) async {
     final endpoint = _endpoint;
     if (endpoint.scheme != 'https') {
       throw Exception(
@@ -67,24 +104,28 @@ class OpenAICompatibleProvider extends AiProvider {
     // mémorisé pour ce couple URL + modèle.
     final key = '${endpoint.toString()}|${model.trim()}';
     final options = _optionsByModel.putIfAbsent(
-        key, () => {'temperature': 0.8, 'max_tokens': 1800});
+        key, () => {'temperature': 0.8, 'max_tokens': maxOutputTokens});
 
     http.Response res;
     for (var attempt = 0;; attempt++) {
-      res = await http
-          .post(
-            endpoint,
-            headers: {
-              'Authorization': 'Bearer ${apiKey.trim()}',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode({
-              'model': model.trim(),
-              'messages': messages,
-              ...options,
-            }),
-          )
-          .timeout(const Duration(seconds: 90));
+      // Requête interruptible : « Annuler » coupe vraiment la connexion.
+      final request = http.AbortableRequest('POST', endpoint, abortTrigger: cancel)
+        ..headers.addAll({
+          'Authorization': 'Bearer ${apiKey.trim()}',
+          'Content-Type': 'application/json',
+        })
+        ..body = jsonEncode({
+          'model': model.trim(),
+          'messages': messages,
+          ...options,
+        });
+      final client = http.Client();
+      try {
+        res = await http.Response.fromStream(
+            await client.send(request).timeout(const Duration(seconds: 90)));
+      } finally {
+        client.close();
+      }
       if (res.statusCode == 200) break;
       final message = _errorMessage(res.body);
       if (res.statusCode != 400 || attempt >= 3 || !_dropRejectedOption(options, message)) {
@@ -99,7 +140,7 @@ class OpenAICompatibleProvider extends AiProvider {
     if (content == null || content.trim().isEmpty) {
       throw Exception('Réponse vide du modèle');
     }
-    return NabuAiResponse.parse(content, name);
+    return content;
   }
 
   static final Map<String, Map<String, Object>> _optionsByModel = {};

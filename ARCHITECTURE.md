@@ -11,22 +11,33 @@ chaîne par un modèle cloud ne fait pas échouer la réponse.
 
 ```
 lib/
-├── main.dart               # amorçage, providers, thèmes, porte d'entrée onboarding
+├── main.dart                 # amorçage, providers, thèmes, porte d'entrée onboarding
 ├── ai/
-│   ├── ai_response.dart    # contrat de réponse + prompt système partagé
-│   ├── ai_provider.dart    # abstraction AiProvider + service de dispatch
-│   ├── offline_engine.dart # moteur local (hors ligne) — logique embarquée
-│   └── openai_provider.dart# client OpenAI-compatible (HTTP)
-├── models/                 # inventions, plans, chats, journal, étincelles, backlog…
-├── services/
-│   ├── settings_service.dart  # préférences (mode IA, clé API, thème, quota…)
-│   └── storage_service.dart   # persistance JSON + export/import/remise à zéro
-├── state/
-│   ├── app_state.dart      # état global, acheminement IA, « applyResponse »
-│   └── tab_bus.dart        # navigation inter-onglets
-├── theme/app_theme.dart    # Material 3, 10 couleurs d'accent, clair/sombre
-├── screens/                # 10 écrans (Accueil, Projets, Studio, Étincelles…)
-└── widgets/                # cartes de projet, cartes de réponse, briques communes
+│   ├── ai_response.dart      # contrat de réponse (concepts, techSheet…) + prompt système
+│   ├── ai_provider.dart      # AiProvider, VisionProvider, AiService, erreurs lisibles
+│   ├── openai_provider.dart  # client OpenAI-compatible : texte, image (vision), annulation
+│   ├── image_generator.dart  # client /images/generations + styles + prompt d'aperçu
+│   ├── offline_engine.dart   # moteur local (hors ligne)
+│   ├── offline_atelier.dart  # concepts et idées par ressources, en local
+│   ├── lenient_json.dart     # décodage tolérant / réparation des JSON tronqués
+│   ├── display_reply.dart    # ce qu'une bulle affiche (y compris anciennes réponses brutes)
+│   └── redact.dart           # masquage des clés dans les textes bruts
+├── models/                   # projets (+ versions, aperçus, contraintes), plans, concepts,
+│                             # fiche technique, analyse de photo, chats, journal…
+├── tech/
+│   ├── material_calculator.dart  # calculs déterministes (découpe, surfaces, budget)
+│   ├── safety_checker.dart       # contrôles de sécurité déterministes
+│   └── tech_sheet_builder.dart   # fiche de départ sans IA (cotes inconnues)
+├── export/
+│   ├── project_exporter.dart # PDF, PNG (rendu hors écran), JSON, ZIP
+│   └── project_text.dart     # version texte d'un projet
+├── services/                 # réglages (clés chiffrées), stockage (images, exports)
+├── state/                    # AppState (IA, versions, mémoire, annulation), TabBus
+├── theme/                    # Material 3, 12 accents dont Cuivre et Bronze
+├── screens/                  # Accueil, Projets, Studio, Atelier, Réglages + photo,
+│                             # galerie de concepts, conception technique, fabrication,
+│                             # studio visuel, versions, export…
+└── widgets/                  # fiches d'invention, concepts, rendu de texte, dessins techniques
 ```
 
 ## Flux principal — une demande IA
@@ -94,9 +105,19 @@ texte seul si le modèle ne renvoie pas de JSON valide.
   illisible est mis de côté (`.corrompu_<date>`) et la copie `.bak` est relue.
   Export horodaté, import (remplacement), remise à zéro.
 
+## Principes de l'atelier d'invention
+
+- **Jamais de JSON brut** : `LenientJson` répare, `DisplayReply` ré-interprète à l'affichage.
+- **L'IA propose, l'application calcule** : cotes de l'IA = hypothèses étiquetées ;
+  quantités, découpes, budget et état du plan viennent de `tech/`.
+- **Rien n'est simulé** : sans fournisseur multimodal ou d'images, la fonction est indiquée
+  comme indisponible.
+- **Rien n'est écrasé** : instantané (`ProjectVersion`) avant chaque modification par l'IA ;
+  une proposition ne remplace jamais une mesure de l'utilisateur.
+
 ## Tests
 
-34 tests unitaires :
+84 tests (voir `RAPPORT_TESTS.md`) :
 
 - `test/core_test.dart` — moteur local (invention, plan, évaluation, étincelle,
   journal), parsing des réponses cloud (JSON valide + repli texte seul),

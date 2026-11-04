@@ -40,7 +40,7 @@ void main() {
     expect(res.message, 'test');
     expect(bodies.length, 2);
     expect(bodies.last.containsKey('temperature'), isFalse);
-    expect(bodies.last['max_tokens'], 1800);
+    expect(bodies.last['max_tokens'], OpenAICompatibleProvider.maxOutputTokens);
 
     // L'ajustement est mémorisé : la requête suivante part directement sans.
     await http.runWithClient(() => provider.respond(userText: 'test'), () => client);
@@ -63,7 +63,7 @@ void main() {
     final provider = OpenAICompatibleProvider(apiKey: 'k', model: 'tokens-test');
     await http.runWithClient(() => provider.respond(userText: 'test'), () => client);
 
-    expect(bodies.last['max_completion_tokens'], 1800);
+    expect(bodies.last['max_completion_tokens'], OpenAICompatibleProvider.maxOutputTokens);
     expect(bodies.last.containsKey('max_tokens'), isFalse);
   });
 

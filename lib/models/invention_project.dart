@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import 'json_utils.dart';
+import 'tech_sheet.dart';
 
 const _uuid = Uuid();
 
@@ -43,6 +44,15 @@ class PlanStep {
   final String safety;
   final List<String> materials;
   final List<String> tools;
+
+  /// But de l'étape (mode « On le fabrique ! »).
+  final String objective;
+
+  /// Cotes utiles à cette étape.
+  final String dimensions;
+
+  /// Astuces de réalisation.
+  final String tips;
   bool done;
 
   PlanStep({
@@ -53,6 +63,9 @@ class PlanStep {
     this.safety = '',
     List<String>? materials,
     List<String>? tools,
+    this.objective = '',
+    this.dimensions = '',
+    this.tips = '',
     this.done = false,
   })  : materials = materials ?? [],
         tools = tools ?? [];
@@ -67,6 +80,9 @@ class PlanStep {
         'safety': safety,
         'materials': materials,
         'tools': tools,
+        if (objective.isNotEmpty) 'objective': objective,
+        if (dimensions.isNotEmpty) 'dimensions': dimensions,
+        if (tips.isNotEmpty) 'tips': tips,
         'done': done,
       };
 
@@ -80,6 +96,9 @@ class PlanStep {
       safety: jsonString(json['safety']),
       materials: jsonStringList(json['materials']),
       tools: jsonStringList(json['tools']),
+      objective: jsonString(json['objective']),
+      dimensions: jsonString(json['dimensions']),
+      tips: jsonString(json['tips']),
       done: jsonBool(json['done']),
     );
   }
@@ -159,6 +178,22 @@ class InventionProject {
   ProjectPlan plan;
   bool starred;
 
+  /// Fiche technique (cotes, nomenclature), créée à la demande.
+  TechSheet? tech;
+
+  /// Contraintes et décisions exprimées au fil de la conversation
+  /// (« je n'ai que quatre boîtes », « sans soudure »…), envoyées à l'IA.
+  List<String> designNotes;
+
+  /// Aperçus artistiques générés, du plus ancien au plus récent.
+  List<VisualVersion> visuals;
+
+  /// États antérieurs du projet : rien n'est écrasé silencieusement.
+  List<ProjectVersion> versions;
+
+  /// Étape affichée en dernier dans le mode « On le fabrique ! ».
+  int currentStep;
+
   InventionProject({
     required this.id,
     required this.title,
@@ -179,9 +214,17 @@ class InventionProject {
     DateTime? updatedAt,
     ProjectPlan? plan,
     this.starred = false,
+    this.tech,
+    List<String>? designNotes,
+    List<VisualVersion>? visuals,
+    List<ProjectVersion>? versions,
+    this.currentStep = 0,
   })  : materials = materials ?? [],
         tools = tools ?? [],
         tags = tags ?? [],
+        designNotes = designNotes ?? [],
+        visuals = visuals ?? [],
+        versions = versions ?? [],
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now(),
         plan = plan ?? ProjectPlan();
@@ -212,7 +255,16 @@ class InventionProject {
         'updatedAt': updatedAt.toIso8601String(),
         'plan': plan.toJson(),
         'starred': starred,
+        if (tech != null) 'tech': tech!.toJson(),
+        if (designNotes.isNotEmpty) 'designNotes': designNotes,
+        if (visuals.isNotEmpty) 'visuals': [for (final v in visuals) v.toJson()],
+        if (versions.isNotEmpty) 'versions': [for (final v in versions) v.toJson()],
+        if (currentStep > 0) 'currentStep': currentStep,
       };
+
+  /// Contenu du projet sans son historique (versions) : instantané d'une
+  /// version, et contexte envoyé à l'IA.
+  Map<String, dynamic> toSnapshotJson() => toJson()..remove('versions');
 
   factory InventionProject.fromJson(Map<String, dynamic> json) =>
       InventionProject(
@@ -235,5 +287,95 @@ class InventionProject {
         updatedAt: DateTime.tryParse(jsonString(json['updatedAt'])) ?? DateTime.now(),
         plan: ProjectPlan.fromJson(jsonMap(json['plan']) ?? {}),
         starred: jsonBool(json['starred']),
+        tech: jsonMap(json['tech']) == null ? null : TechSheet.fromJson(jsonMap(json['tech'])!),
+        designNotes: jsonStringList(json['designNotes']),
+        visuals: [
+          if (json['visuals'] is List)
+            for (final v in json['visuals'] as List)
+              if (jsonMap(v) case final m?) VisualVersion.fromJson(m),
+        ],
+        versions: [
+          if (json['versions'] is List)
+            for (final v in json['versions'] as List)
+              if (jsonMap(v) case final m?) ProjectVersion.fromJson(m),
+        ],
+        currentStep: jsonInt(json['currentStep'], 0, min: 0),
+      );
+}
+
+/// Aperçu artistique d'un projet (image générée par un vrai fournisseur).
+class VisualVersion {
+  final String id;
+  final String style;
+
+  /// Modifications demandées depuis l'aperçu d'origine (« allonge le cou »…).
+  final List<String> modifications;
+  final String prompt;
+
+  /// Image enregistrée dans le dossier de l'application.
+  final String filePath;
+  final String provider;
+  final DateTime createdAt;
+
+  VisualVersion({
+    String? id,
+    required this.style,
+    List<String>? modifications,
+    required this.prompt,
+    required this.filePath,
+    this.provider = '',
+    DateTime? createdAt,
+  })  : id = (id == null || id.isEmpty) ? _uuid.v4() : id,
+        modifications = modifications ?? [],
+        createdAt = createdAt ?? DateTime.now();
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'style': style,
+        'modifications': modifications,
+        'prompt': prompt,
+        'filePath': filePath,
+        'provider': provider,
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  factory VisualVersion.fromJson(Map<String, dynamic> json) => VisualVersion(
+        id: jsonString(json['id']),
+        style: jsonString(json['style']),
+        modifications: jsonStringList(json['modifications']),
+        prompt: jsonString(json['prompt']),
+        filePath: jsonString(json['filePath']),
+        provider: jsonString(json['provider']),
+        createdAt: DateTime.tryParse(jsonString(json['createdAt'])),
+      );
+}
+
+/// Instantané d'un projet avant une modification.
+class ProjectVersion {
+  final String id;
+  final DateTime createdAt;
+
+  /// Ce qui a déclenché la sauvegarde (« avant le plan de l'IA »…).
+  final String reason;
+  final Map<String, dynamic> snapshot;
+
+  ProjectVersion({String? id, DateTime? createdAt, required this.reason, required this.snapshot})
+      : id = (id == null || id.isEmpty) ? _uuid.v4() : id,
+        createdAt = createdAt ?? DateTime.now();
+
+  String get title => jsonString(snapshot['title']);
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'createdAt': createdAt.toIso8601String(),
+        'reason': reason,
+        'snapshot': snapshot,
+      };
+
+  factory ProjectVersion.fromJson(Map<String, dynamic> json) => ProjectVersion(
+        id: jsonString(json['id']),
+        createdAt: DateTime.tryParse(jsonString(json['createdAt'])),
+        reason: jsonString(json['reason']),
+        snapshot: jsonMap(json['snapshot']) ?? {},
       );
 }

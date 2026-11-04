@@ -109,9 +109,9 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _ActionCard(
-                      icon: Icons.auto_awesome,
-                      label: 'Étincelles',
-                      detail: 'Idées créatives',
+                      icon: Icons.handyman,
+                      label: 'Atelier',
+                      detail: 'Idées et concepts',
                       onTap: () => context.read<TabBus>().go(3),
                     ),
                   ),

@@ -42,6 +42,8 @@ class _SparksScreenState extends State<SparksScreen> {
   }
 
   void _invent(SparkContent spark) {
+    // Ouvert depuis l'Atelier : on revient à la barre d'onglets pour voir le Studio.
+    Navigator.of(context).popUntil((route) => route.isFirst);
     context.read<TabBus>().go(2);
     context.read<AppState>().askAi(
         'Conçois une invention à partir de cette étincelle : ${spark.title} — ${spark.pitch}');

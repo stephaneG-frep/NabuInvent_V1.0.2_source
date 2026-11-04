@@ -1,13 +1,15 @@
 # NabuInvent AI
 
-**NabuInvent AI** est un assistant IA inventeur, bricoleur et créatif pour Android.
-Il vous aide à imaginer, concevoir et planifier des inventions, à trouver des étincelles
-de créativité, à évaluer vos idées et à tenir un journal de bord. 100 % français.
+**NabuInvent AI** est un compagnon d'invention pour Android, 100 % en français. On lui décrit
+une idée — *« un canard et un héron en boîtes de conserve pour le jardin »* — et il propose
+plusieurs concepts, transforme le concept choisi en projet, établit la fiche technique et les
+plans cotés, guide la fabrication pas à pas et produit un dossier exportable (PDF, ZIP, JSON,
+PNG).
 
-Le cœur de l'application fonctionne **entièrement hors ligne** grâce à un moteur
-local intégré (aucune donnée envoyée à un serveur). Vous pouvez, en option, connecter
-n'importe quel service compatible **OpenAI** (OpenAI, OpenRouter, Mistral, Groq,
-Perplexity, Claude, Gemini…) pour obtenir des réponses générées par un grand modèle de langage.
+Le cœur de l'application fonctionne **hors ligne** (moteur local, projets, calculs, plans,
+exports). En option, un service compatible **OpenAI** (OpenAI, OpenRouter, Mistral, Groq,
+Perplexity, Anthropic, Gemini…) apporte des concepts sur mesure et l'analyse de photos, et un
+service `/images/generations` les aperçus visuels.
 
 ---
 
@@ -16,37 +18,26 @@ Perplexity, Claude, Gemini…) pour obtenir des réponses générées par un gra
 Installez l'APK de la dernière version (voir le dossier de livraison).
 Activez « installer des applications inconnues » si nécessaire.
 
-> ⚠️ À partir de la **1.0.3**, les APK sont signés avec la clé release de
-> NabuInvent. Une version antérieure (signée debug) doit être **désinstallée**
-> avant d'installer la 1.0.3 : exportez d'abord vos données (Réglages →
-> Exporter), puis réimportez-les. Les mises à jour suivantes s'installent
-> par-dessus, sans perte.
+> ⚠️ Depuis la **1.0.3**, les APK sont signés avec la clé release de NabuInvent. Une version
+> antérieure (signée debug) doit être **désinstallée** une fois : exportez d'abord vos données
+> (Réglages → Exporter), puis réimportez-les. Les mises à jour suivantes, dont la 1.1.0,
+> s'installent par-dessus, sans perte.
 
 ## Démarrage rapide
 
-1. Ouvrez **NabuInvent AI** — un petit écran de bienvenue explique les bases.
-2. Allez dans l'onglet **Studio** (💬) et écrivez une phrase, par exemple :
-   - *« Invente-moi un objet pour organiser mon bureau »*
-   - *« Donne-moi une idée intelligente pour le jardin »*
-   - *« Écris-moi une idée facile à réaliser »*
-   - *« Comment dois-je nommer une invention qui… ? »*
-3. L'IA crée automatiquement une **fiche projet**, que vous retrouvez dans **Projets**.
-4. Depuis une fiche projet, demandez un **plan de construction** détaillé,
-   cochez les étapes au fur et à mesure dans l'onglet **Plan**.
-5. Retrouvez vos trouvailles aléatoires dans l'onglet **Étincelles** (12 gratuites
-   par jour en mode local) et vos idées en attente dans **Réserve d'idées** (📋).
+1. Onglet **Atelier** → décrivez ce que vous voulez fabriquer → **Proposer des concepts**.
+2. Dans le Studio, **choisissez un concept** : il devient un projet.
+3. Fiche projet → **Atelier du projet** : conception technique (cotes, calculs, plans),
+   **On le fabrique !**, Studio visuel, versions, export.
 
-## Personnalisation optionnelle
+Le mode d'emploi complet est dans [`GUIDE_UTILISATEUR.md`](GUIDE_UTILISATEUR.md).
 
-Ouvrez **Réglages** pour :
+## Configuration optionnelle (Réglages)
 
-- Choisir **Local (hors ligne)** ou **Cloud (OpenAI)** comme moteur d'IA.
-- En mode Cloud : saisir l'**URL de base**, la **clé API** et le **modèle**
-  (des préréglages existent pour OpenAI, OpenRouter, Mistral, Groq, Perplexity,
-  Claude et Gemini).
-- Tester la connexion avant de l'utiliser.
-- Changer la **couleur d'accent** et le **thème clair/sombre**.
-- **Exporter** / **Importer** une sauvegarde JSON de toutes vos données.
+- **Assistant IA** : local ou cloud (préréglages, clé chiffrée, test de connexion avec le
+  message exact du fournisseur).
+- **Génération d'images** : URL, modèle (ex. `gpt-image-1`) et clé distincte.
+- **Apparence**, **mode technique** (JSON d'origine des réponses), **sauvegardes**.
 
 ## Construire depuis les sources
 
@@ -57,13 +48,13 @@ export PATH="$PATH:/opt/flutter/bin"   # selon votre installation
 cd nabuinvent
 flutter pub get
 flutter analyze        # doit afficher « No issues found! »
-flutter test           # les 34 tests unitaires doivent passer
+flutter test           # les 84 tests doivent passer
 flutter build apk --release
 flutter build apk --release --split-per-abi
 ```
 
 Les APK sont produits dans `build/app/outputs/flutter-apk/`.
-La version est gérée dans `pubspec.yaml` (`1.0.3+4`) : augmentez le numéro
+La version est gérée dans `pubspec.yaml` (`1.1.0+5`) : augmentez le numéro
 après le `+` à chaque livraison.
 
 ### Signature
@@ -89,3 +80,7 @@ l'application installée n'est possible.
 - [`FONCTIONNALITES.md`](FONCTIONNALITES.md) — tout ce que sait faire l'application.
 - [`GUIDE_UTILISATEUR.md`](GUIDE_UTILISATEUR.md) — guide pas à pas pour l'utiliser.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — structure technique du code.
+- [`AUDIT_NABUINVENT.md`](AUDIT_NABUINVENT.md) — audit de départ de l'atelier d'invention.
+- [`PROGRESSION.md`](PROGRESSION.md) — avancement phase par phase.
+- [`CHANGELOG.md`](CHANGELOG.md) — journal des modifications.
+- [`RAPPORT_TESTS.md`](RAPPORT_TESTS.md) — tests automatisés et vérifications sur appareil.

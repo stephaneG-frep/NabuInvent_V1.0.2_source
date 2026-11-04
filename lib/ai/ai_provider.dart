@@ -1,3 +1,9 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:http/http.dart' show RequestAbortedException;
+
+import '../models/material_analysis.dart';
 import 'ai_response.dart';
 
 abstract class AiProvider {
@@ -7,11 +13,37 @@ abstract class AiProvider {
 
   bool get isConfigured;
 
+  /// [cancel] : quand ce futur se termine, la requête en cours est interrompue
+  /// (les fournisseurs locaux, instantanés, peuvent l'ignorer).
   Future<NabuAiResponse> respond({
     required String userText,
     List<AiTurn> history = const [],
     String? projectContext,
+    Future<void>? cancel,
   });
+}
+
+/// Fournisseur capable d'analyser une image (modèle multimodal). Le moteur
+/// local ne l'implémente pas : l'analyse de photo n'est jamais simulée.
+abstract class VisionProvider {
+  Future<MaterialAnalysis> analyzeMaterials({
+    required Uint8List imageBytes,
+    required String mimeType,
+    String note = '',
+  });
+}
+
+/// Message d'erreur lisible pour une erreur d'appel à un fournisseur IA.
+String friendlyAiError(Object e) {
+  final text = e.toString();
+  if (e is TimeoutException) {
+    return 'Le fournisseur n\'a pas répondu à temps. Vérifie ta connexion et réessaie.';
+  }
+  if (RegExp(r'SocketException|Failed host lookup|Connection (refused|reset)|Network is unreachable')
+      .hasMatch(text)) {
+    return 'Pas de connexion Internet : cette fonction a besoin du réseau.';
+  }
+  return text.replaceFirst('Exception: ', '');
 }
 
 class AiService {
@@ -29,6 +61,7 @@ class AiService {
     required String userText,
     List<AiTurn> history = const [],
     String? projectContext,
+    Future<void>? cancel,
   }) async {
     if (!provider.isConfigured) {
       return NabuAiResponse(
@@ -46,6 +79,14 @@ class AiService {
         userText: userText,
         history: history,
         projectContext: projectContext,
+        cancel: cancel,
+      );
+    } on RequestAbortedException {
+      return NabuAiResponse(
+        provider: provider.name,
+        message: 'Demande annulée.',
+        success: false,
+        error: 'cancelled',
       );
     } catch (e) {
       return NabuAiResponse(

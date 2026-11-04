@@ -4,7 +4,9 @@ import 'dart:math';
 import '../models/idea_evaluation.dart';
 import '../models/invention_project.dart';
 import '../models/json_utils.dart';
+import '../tech/tech_sheet_builder.dart';
 import 'ai_provider.dart';
+import 'offline_atelier.dart';
 import 'ai_response.dart';
 
 class InvBase {
@@ -79,6 +81,7 @@ class OfflineEngine extends AiProvider {
     required String userText,
     List<AiTurn> history = const [],
     String? projectContext,
+    Future<void>? cancel,
   }) async {
     final text = stripAccents(userText.trim().toLowerCase());
     final ctx = _parseContext(projectContext);
@@ -96,6 +99,20 @@ class OfflineEngine extends AiProvider {
     }
     if (text.length < 6) {
       return _menu('Donne-moi un peu plus de matière : quel problème veux-tu résoudre ?');
+    }
+
+    // Fiche technique : construite sans IA à partir du projet en cours, cotes
+    // laissées inconnues (le moteur local ne devine aucune dimension).
+    if (RegExp(r'fiche technique|nomenclature|\bcotes?\b').hasMatch(text)) {
+      return _techSheet(projectContext);
+    }
+
+    // « Je voudrais fabriquer un canard et un héron… », « J'ai des boîtes…
+    // trouve-moi quelque chose » : plusieurs concepts plutôt qu'une invention.
+    // Testé avant le plan, car ces demandes contiennent souvent « fabriquer ».
+    if (OfflineAtelier.wantsConcepts(text)) {
+      final concepts = _concepts(userText.trim(), text);
+      if (concepts != null) return concepts;
     }
 
     // Un message qui commence par « invente / conçois / imagine » demande une
@@ -655,6 +672,70 @@ class OfflineEngine extends AiProvider {
           'sont souvent le point de départ d\'une invention.',
       intent: AiIntent.journal,
       journalText: note.length > 240 ? '${note.substring(0, 237)}…' : note,
+    );
+  }
+
+  static const _localNotice =
+      'Atelier local : ces variantes viennent de modèles types et les dimensions sont '
+      'indicatives. Le mode cloud propose des concepts sur mesure.';
+
+  NabuAiResponse? _concepts(String raw, String text) {
+    final req = OfflineAtelier.parse(raw, text);
+    if (req.resourceMode) {
+      if (req.materials.isEmpty) {
+        return _menu('Dis-moi ce que tu as sous la main (matériaux, quantités) et je te '
+            'propose des choses à fabriquer.');
+      }
+      final ideas = OfflineAtelier.ideasFromResources(req.materials);
+      if (ideas.isEmpty) {
+        return _menu('Je n\'ai pas de modèle type pour ${req.materials.join(', ')} en mode '
+            'local. Précise d\'autres matériaux, ou passe en mode cloud.');
+      }
+      return NabuAiResponse(
+        provider: name,
+        intent: AiIntent.concepts,
+        resources: req.materials,
+        concepts: ideas,
+        message: 'J\'ai repéré tes ressources : ${req.materials.join(', ')}. Voici les idées '
+            'les plus faisables, classées selon ce que tu possèdes déjà.\n\n$_localNotice',
+      );
+    }
+    if (req.subjects.isEmpty) return null;
+    final what = req.subjects.length == 1
+        ? '« ${req.subjects.first} »'
+        : req.subjects.map((s) => '« $s »').join(' et ');
+    final with_ = req.materials.isEmpty ? '' : ' avec ${req.materials.join(', ')}';
+    final dest = req.destination.isEmpty ? '' : ' pour ${req.destination}';
+    return NabuAiResponse(
+      provider: name,
+      intent: AiIntent.concepts,
+      concepts: OfflineAtelier.variantsFor(req),
+      message: 'Voici trois pistes pour $what$with_$dest : une version rustique, une '
+          'articulée et une stylisée. Choisis celle qui te plaît pour en faire un projet.'
+          '\n\n$_localNotice',
+    );
+  }
+
+  NabuAiResponse _techSheet(String? projectContext) {
+    InventionProject? project;
+    try {
+      if (projectContext != null && projectContext.isNotEmpty) {
+        project = InventionProject.fromJson(jsonDecode(projectContext) as Map<String, dynamic>);
+      }
+    } catch (_) {}
+    if (project == null) {
+      return _menu('Ouvre d\'abord un projet (bouton « Continuer sur ce projet ») pour que '
+          'je prépare sa fiche technique.');
+    }
+    final sheet = TechSheetBuilder.fromProject(project);
+    return NabuAiResponse(
+      provider: name,
+      intent: AiIntent.techsheet,
+      project: InventionProject(id: project.id, title: project.title),
+      techSheet: sheet,
+      message: 'Fiche technique préparée pour « ${project.title} » : ${sheet.parts.length} pièce(s) '
+          'tirée(s) des matériaux. Les cotes sont à mesurer et à saisir dans l\'onglet Pièces : '
+          'le mode local ne devine aucune dimension.',
     );
   }
 

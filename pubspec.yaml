@@ -2,7 +2,7 @@ name: nabuinvent
 description: "NabuInvent AI — l'agent IA inventeur, bricoleur et créatif."
 publish_to: 'none'
 
-version: 1.0.3+4
+version: 1.1.0+5
 
 environment:
   sdk: ^3.12.2
@@ -21,6 +21,9 @@ dependencies:
   share_plus: ^13.3.0
   file_picker: ^12.3.0
   flutter_secure_storage: ^11.2.0
+  image_picker: ^1.2.4
+  pdf: ^3.13.1
+  archive: ^4.6.0
 
 dev_dependencies:
   flutter_test:
@@ -30,3 +33,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/fonts/DejaVuSans.ttf
+    - assets/fonts/DejaVuSans-Bold.ttf

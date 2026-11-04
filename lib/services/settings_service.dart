@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../theme/app_theme.dart';
+
 class AppSettings {
   static const String kProvider = 'ai_provider';
   static const String kBaseUrl = 'ai_base_url';
@@ -13,6 +15,11 @@ class AppSettings {
   static const String kInventorName = 'inventor_name';
   static const String kLastSparkDate = 'last_spark_date';
   static const String kSparkCount = 'spark_count_today';
+  static const String kTechnicalMode = 'technical_mode';
+  static const String kPhotoConsentUrl = 'photo_consent_url';
+  static const String kImageBaseUrl = 'image_base_url';
+  static const String kImageModel = 'image_model';
+  static const String kImageApiKey = 'image_api_key';
 
   final String aiProvider;
   final String aiBaseUrl;
@@ -25,17 +32,34 @@ class AppSettings {
   final String lastSparkDate;
   final int sparkCountToday;
 
+  /// Affiche le JSON d'origine des réponses IA (secrets masqués).
+  final bool technicalMode;
+
+  /// URL du fournisseur auquel l'utilisateur a accepté d'envoyer ses photos
+  /// sans redemander. Vide = demander à chaque fois.
+  final String photoConsentUrl;
+
+  /// Service de génération d'images (compatible OpenAI /images/generations).
+  final String imageBaseUrl;
+  final String imageModel;
+  final String imageApiKey;
+
   const AppSettings({
     this.aiProvider = 'local',
     this.aiBaseUrl = 'https://api.openai.com/v1',
     this.apiKey = '',
     this.aiModel = 'gpt-4o-mini',
     this.themeMode = ThemeMode.system,
-    this.accentIndex = 0,
+    this.accentIndex = AppThemes.defaultAccent,
     this.onboarded = false,
     this.inventorName = 'Nabu',
     this.lastSparkDate = '',
     this.sparkCountToday = 0,
+    this.technicalMode = false,
+    this.photoConsentUrl = '',
+    this.imageBaseUrl = 'https://api.openai.com/v1',
+    this.imageModel = 'gpt-image-1',
+    this.imageApiKey = '',
   });
 
   bool get useCloud => aiProvider == 'openai';
@@ -54,6 +78,11 @@ class AppSettings {
     String? inventorName,
     String? lastSparkDate,
     int? sparkCountToday,
+    bool? technicalMode,
+    String? photoConsentUrl,
+    String? imageBaseUrl,
+    String? imageModel,
+    String? imageApiKey,
   }) =>
       AppSettings(
         aiProvider: aiProvider ?? this.aiProvider,
@@ -66,6 +95,11 @@ class AppSettings {
         inventorName: inventorName ?? this.inventorName,
         lastSparkDate: lastSparkDate ?? this.lastSparkDate,
         sparkCountToday: sparkCountToday ?? this.sparkCountToday,
+        technicalMode: technicalMode ?? this.technicalMode,
+        photoConsentUrl: photoConsentUrl ?? this.photoConsentUrl,
+        imageBaseUrl: imageBaseUrl ?? this.imageBaseUrl,
+        imageModel: imageModel ?? this.imageModel,
+        imageApiKey: imageApiKey ?? this.imageApiKey,
       );
 }
 
@@ -93,6 +127,12 @@ class SettingsService {
 
   Future<AppSettings> load() async {
     final prefs = await SharedPreferences.getInstance();
+    String imageKey;
+    try {
+      imageKey = await _secure.read(key: AppSettings.kImageApiKey) ?? '';
+    } catch (_) {
+      imageKey = '';
+    }
     String apiKey;
     try {
       apiKey = await _loadApiKey(prefs);
@@ -106,11 +146,16 @@ class SettingsService {
       apiKey: apiKey,
       aiModel: prefs.getString(AppSettings.kModel) ?? 'gpt-4o-mini',
       themeMode: _themeFromName(prefs.getString(AppSettings.kThemeMode)),
-      accentIndex: prefs.getInt(AppSettings.kAccentIndex) ?? 0,
+      accentIndex: prefs.getInt(AppSettings.kAccentIndex) ?? AppThemes.defaultAccent,
       onboarded: prefs.getBool(AppSettings.kOnboarded) ?? false,
       inventorName: prefs.getString(AppSettings.kInventorName) ?? 'Nabu',
       lastSparkDate: prefs.getString(AppSettings.kLastSparkDate) ?? '',
       sparkCountToday: prefs.getInt(AppSettings.kSparkCount) ?? 0,
+      technicalMode: prefs.getBool(AppSettings.kTechnicalMode) ?? false,
+      photoConsentUrl: prefs.getString(AppSettings.kPhotoConsentUrl) ?? '',
+      imageBaseUrl: prefs.getString(AppSettings.kImageBaseUrl) ?? 'https://api.openai.com/v1',
+      imageModel: prefs.getString(AppSettings.kImageModel) ?? 'gpt-image-1',
+      imageApiKey: imageKey,
     );
   }
 
@@ -137,6 +182,15 @@ class SettingsService {
     await prefs.setString(AppSettings.kInventorName, settings.inventorName);
     await prefs.setString(AppSettings.kLastSparkDate, settings.lastSparkDate);
     await prefs.setInt(AppSettings.kSparkCount, settings.sparkCountToday);
+    await prefs.setBool(AppSettings.kTechnicalMode, settings.technicalMode);
+    await prefs.setString(AppSettings.kPhotoConsentUrl, settings.photoConsentUrl);
+    await prefs.setString(AppSettings.kImageBaseUrl, settings.imageBaseUrl);
+    await prefs.setString(AppSettings.kImageModel, settings.imageModel);
+    if (settings.imageApiKey.isEmpty) {
+      await _secure.delete(key: AppSettings.kImageApiKey);
+    } else {
+      await _secure.write(key: AppSettings.kImageApiKey, value: settings.imageApiKey);
+    }
   }
 
   ThemeMode _themeFromName(String? name) {
